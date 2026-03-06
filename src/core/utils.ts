@@ -1,0 +1,70 @@
+// Utility helpers for form internals
+
+/** Deep get a value from an object using dot-notation path */
+export function getIn(obj: unknown, path: string): unknown {
+  const keys = path.split('.')
+  let current: unknown = obj
+  for (const key of keys) {
+    if (current == null) return undefined
+    current = (current as Record<string, unknown>)[key]
+  }
+  return current
+}
+
+/** Filter a Record keeping only keys matching a prefix (key === prefix || key starts with prefix.) */
+export function filterByPrefix<V>(
+  record: Record<string, V>,
+  prefix?: string,
+): Record<string, V> {
+  if (!prefix) return { ...record }
+  const result: Record<string, V> = {}
+  for (const key of Object.keys(record)) {
+    if (key === prefix || key.startsWith(prefix + '.')) {
+      const val = record[key]
+      if (val !== undefined) result[key] = val
+    }
+  }
+  return result
+}
+
+/** Returns a matcher function for tree prefix matching */
+export function treeMatcher(prefix?: string): (key: string) => boolean {
+  if (!prefix) return () => true
+  return (key: string) => key === prefix || key.startsWith(prefix + '.')
+}
+
+/** Immutable deep set with structural sharing */
+export function setIn(obj: unknown, path: string, value: unknown): unknown {
+  const keys = path.split('.')
+  if (keys.length === 0) return value
+  return setAtKeys(obj, keys, 0, value)
+}
+
+function setAtKeys(obj: unknown, keys: string[], i: number, value: unknown): unknown {
+  if (i === keys.length) return value
+  const key = keys[i]
+  const current = obj != null ? (obj as Record<string, unknown>)[key] : undefined
+  const next = setAtKeys(current, keys, i + 1, value)
+  if (Array.isArray(obj)) {
+    const copy = obj.slice()
+    copy[Number(key)] = next
+    return copy
+  }
+  return { ...(obj as Record<string, unknown>), [key]: next }
+}
+
+/** Simple deep equality (handles primitives, plain objects, arrays) */
+export function isEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (a == null || b == null) return false
+  if (typeof a !== typeof b) return false
+  if (typeof a !== 'object') return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  const keysA = Object.keys(a as Record<string, unknown>)
+  const keysB = Object.keys(b as Record<string, unknown>)
+  if (keysA.length !== keysB.length) return false
+  for (const key of keysA) {
+    if (!isEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) return false
+  }
+  return true
+}
