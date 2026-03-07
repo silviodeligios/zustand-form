@@ -1,8 +1,9 @@
-import { memo, useCallback, useRef, useState } from "react";
-import { useZField, useZFieldArray } from "zform";
+import { memo } from "react";
+import { useZFieldArray } from "zform";
 import { checkSectionTitleUniqueness } from "../formConfig";
 import type { FormValues, FormStore } from "../formConfig";
-import FieldWrapper from "../components/FieldWrapper";
+import TextField from "../components/TextField";
+import AsyncTextField from "../components/AsyncTextField";
 import DemoExample from "../components/DemoExample";
 
 const btnStyle: React.CSSProperties = {
@@ -16,9 +17,9 @@ const btnStyle: React.CSSProperties = {
 const dangerBtn: React.CSSProperties = { ...btnStyle, color: "#c00", borderColor: "#c00" };
 
 // ---------------------------------------------------------------------------
-// Item label field
+// Item row: TextField + array action buttons
 // ---------------------------------------------------------------------------
-const ItemField = memo(function ItemField({
+const ItemRow = memo(function ItemRow({
   form,
   sectionIndex,
   itemIndex,
@@ -33,102 +34,16 @@ const ItemField = memo(function ItemField({
 }) {
   const itemsPath = `sections.${sectionIndex}.items`;
   const path = `${itemsPath}.${itemIndex}.label`;
-  const { field, fieldState } = useZField(form, path);
-
-  const renderCount = useRef(0);
-  renderCount.current++;
 
   return (
-    <FieldWrapper
-      label={`Item [${sectionIndex}][${itemIndex}]`}
-      error={fieldState.error}
-      isDirty={fieldState.dirty}
-      isTouched={fieldState.touched}
-      isPending={fieldState.pending}
-      renderCount={renderCount.current}
-    >
-      <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-        <input
-          ref={field.ref as (el: HTMLInputElement | null) => void}
-          type="text"
-          value={String(field.value ?? "")}
-          onChange={(e) => field.onChange(e.target.value)}
-          onFocus={field.onFocus}
-          onBlur={field.onBlur}
-          style={{
-            flex: 1,
-            padding: 8,
-            border: fieldState.error ? "1px solid #c00" : "1px solid #ccc",
-            borderRadius: 4,
-            boxSizing: "border-box",
-          }}
-        />
-        <button type="button" style={btnStyle} disabled={isFirst} onClick={() => form.fieldArray.move(itemsPath, itemIndex, itemIndex - 1)} title="Move up">↑</button>
-        <button type="button" style={btnStyle} disabled={isLast} onClick={() => form.fieldArray.move(itemsPath, itemIndex, itemIndex + 1)} title="Move down">↓</button>
-        <button type="button" style={dangerBtn} onClick={() => form.fieldArray.remove(itemsPath, itemIndex)} title="Remove">✕</button>
+    <div style={{ display: "flex", gap: 4, alignItems: "flex-start" }}>
+      <div style={{ flex: 1 }}>
+        <TextField form={form} path={path} label={`Item [${sectionIndex}][${itemIndex}]`} />
       </div>
-    </FieldWrapper>
-  );
-});
-
-// ---------------------------------------------------------------------------
-// Section title field
-// ---------------------------------------------------------------------------
-const SectionTitleField = memo(function SectionTitleField({
-  form,
-  sectionIndex,
-}: {
-  form: FormStore;
-  sectionIndex: number;
-}) {
-  const path = `sections.${sectionIndex}.title`;
-  const [isCalling, setIsCalling] = useState(false);
-
-  const asyncValidate = useCallback(
-    async (value: unknown) => {
-      setIsCalling(true);
-      const result = await checkSectionTitleUniqueness(value as string);
-      setIsCalling(false);
-      return result;
-    },
-    [],
-  );
-
-  const { field, fieldState } = useZField(form, path, { asyncValidate, debounce: 800 });
-
-  const renderCount = useRef(0);
-  renderCount.current++;
-
-  return (
-    <FieldWrapper
-      label={`Section [${sectionIndex}] title`}
-      error={fieldState.error}
-      isDirty={fieldState.dirty}
-      isTouched={fieldState.touched}
-      isPending={fieldState.pending}
-      isCalling={isCalling}
-      renderCount={renderCount.current}
-    >
-      <input
-        ref={field.ref as (el: HTMLInputElement | null) => void}
-        type="text"
-        value={String(field.value ?? "")}
-        onChange={(e) => field.onChange(e.target.value)}
-        onFocus={field.onFocus}
-        onBlur={field.onBlur}
-        placeholder='try "duplicate"'
-        style={{
-          display: "block",
-          width: "100%",
-          padding: 8,
-          marginTop: 4,
-          border: fieldState.error ? "1px solid #c00" : "1px solid #ccc",
-          borderRadius: 4,
-          boxSizing: "border-box",
-          fontWeight: 600,
-        }}
-      />
-    </FieldWrapper>
+      <button type="button" style={btnStyle} disabled={isFirst} onClick={() => form.fieldArray.move(itemsPath, itemIndex, itemIndex - 1)} title="Move up">↑</button>
+      <button type="button" style={btnStyle} disabled={isLast} onClick={() => form.fieldArray.move(itemsPath, itemIndex, itemIndex + 1)} title="Move down">↓</button>
+      <button type="button" style={dangerBtn} onClick={() => form.fieldArray.remove(itemsPath, itemIndex)} title="Remove">✕</button>
+    </div>
   );
 });
 
@@ -152,9 +67,16 @@ const SectionBlock = memo(function SectionBlock({
 
   return (
     <div style={{ border: "1px dashed #ccc", borderRadius: 6, padding: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
         <div style={{ flex: 1 }}>
-          <SectionTitleField form={form} sectionIndex={sectionIndex} />
+          <AsyncTextField
+            form={form}
+            path={`sections.${sectionIndex}.title`}
+            label={`Section [${sectionIndex}] title`}
+            asyncValidate={checkSectionTitleUniqueness}
+            debounce={800}
+            exampleValues={["duplicate"]}
+          />
         </div>
         <button type="button" style={btnStyle} disabled={isFirst} onClick={() => form.fieldArray.move("sections", sectionIndex, sectionIndex - 1)} title="Move section up">↑</button>
         <button type="button" style={btnStyle} disabled={isLast} onClick={() => form.fieldArray.move("sections", sectionIndex, sectionIndex + 1)} title="Move section down">↓</button>
@@ -162,7 +84,7 @@ const SectionBlock = memo(function SectionBlock({
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingLeft: 16 }}>
         {items.map((item) => (
-          <ItemField
+          <ItemRow
             key={item.id}
             form={form}
             sectionIndex={sectionIndex}

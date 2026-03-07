@@ -13,6 +13,7 @@ const TextField = memo(function TextField({
   asyncValidate,
   asyncValidateMode,
   debounce,
+  placeholder,
 }: {
   form: FormStore;
   path: string;
@@ -22,6 +23,7 @@ const TextField = memo(function TextField({
   asyncValidate?: UseZFieldOptions["asyncValidate"];
   asyncValidateMode?: UseZFieldOptions["asyncValidateMode"];
   debounce?: number;
+  placeholder?: string;
 }) {
   const options: UseZFieldOptions | undefined =
     validate || asyncValidate || debounce
@@ -47,6 +49,7 @@ const TextField = memo(function TextField({
         onChange={(e) => field.onChange(e.target.value)}
         onFocus={field.onFocus}
         onBlur={field.onBlur}
+        placeholder={placeholder}
         style={{
           display: "block",
           width: "100%",

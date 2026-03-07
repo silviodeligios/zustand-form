@@ -6,7 +6,6 @@ export default function FieldWrapper({
   isDirty,
   isTouched,
   isPending,
-  isCalling,
   renderCount,
   children,
 }: {
@@ -15,7 +14,6 @@ export default function FieldWrapper({
   isDirty: boolean;
   isTouched: boolean;
   isPending: boolean;
-  isCalling?: boolean;
   renderCount: number;
   children: ReactNode;
 }) {
@@ -30,7 +28,6 @@ export default function FieldWrapper({
         <span>{isDirty ? "✏️" : "⬜"} dirty</span>
         <span>{isTouched ? "👆" : "⬜"} touched</span>
         <span>{isPending ? "⏳" : "⬜"} pending</span>
-        {isCalling !== undefined && <span>{isCalling ? "📡" : "⬜"} calling</span>}
         <span>🔄 renders: {renderCount}</span>
       </div>
     </div>

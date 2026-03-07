@@ -12,30 +12,28 @@ export function schemaValidationEnhancer<TValues>(
     switch (ctx.type) {
       case A.SET_VALUE: {
         if (!ctx.path || resolverMode !== 'onChange') return draft
-        const errors = draft.errors ?? prev.errors
-        if (errors[ctx.path]) return draft
+        // Skip only if a field-level validator already set an error in this pipeline run
+        if (draft.errors?.[ctx.path]) return draft
         const values = (draft.values ?? prev.values) as TValues
         const error = resolver.validateField(ctx.path, values)
-        if (!error) return draft
-        return { ...draft, errors: { ...errors, [ctx.path]: error } }
+        const base = draft.errors ?? prev.errors
+        return { ...draft, errors: { ...base, [ctx.path]: error } }
       }
       case A.BLUR: {
         if (!ctx.path || resolverMode !== 'onBlur') return draft
-        const errors = draft.errors ?? prev.errors
-        if (errors[ctx.path]) return draft
+        if (draft.errors?.[ctx.path]) return draft
         const values = (draft.values ?? prev.values) as TValues
         const error = resolver.validateField(ctx.path, values)
-        if (!error) return draft
-        return { ...draft, errors: { ...errors, [ctx.path]: error } }
+        const base = draft.errors ?? prev.errors
+        return { ...draft, errors: { ...base, [ctx.path]: error } }
       }
       case A.VALIDATE_FIELD: {
         if (!ctx.path) return draft
-        const errors = draft.errors ?? prev.errors
-        if (errors[ctx.path]) return draft
+        if (draft.errors?.[ctx.path]) return draft
         const values = (draft.values ?? prev.values) as TValues
         const error = resolver.validateField(ctx.path, values)
-        if (!error) return draft
-        return { ...draft, errors: { ...errors, [ctx.path]: error } }
+        const base = draft.errors ?? prev.errors
+        return { ...draft, errors: { ...base, [ctx.path]: error } }
       }
       default:
         return draft

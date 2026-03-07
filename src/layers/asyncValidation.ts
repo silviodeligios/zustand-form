@@ -17,13 +17,16 @@ export function asyncValidationEnhancer<TValues>(
         if ((entry.asyncValidateMode ?? 'onChange') !== 'onChange') return draft
         const dirty = (draft.dirtyFields ?? prev.dirtyFields)[ctx.path]
         if (!dirty) return draft
-        const errors = draft.errors ?? prev.errors
-        if (errors[ctx.path]) return draft
+        // Skip only if a sync/schema validator set an error in this pipeline run
+        if (draft.errors?.[ctx.path]) return draft
         const value = getIn((draft.values ?? prev.values) as TValues, ctx.path)
         const path = ctx.path
+        // Clear any stale async error and set pending
+        const errors = draft.errors ?? prev.errors
+        const { [path]: _, ...clearedErrors } = errors
         const pending = { ...(draft.pendingFields ?? prev.pendingFields), [path]: true }
         queueMicrotask(() => runAsync(path, value, entry, dispatch, registry))
-        return { ...draft, pendingFields: pending }
+        return { ...draft, errors: clearedErrors, pendingFields: pending }
       }
       case A.BLUR: {
         if (!ctx.path) return draft
@@ -31,13 +34,34 @@ export function asyncValidationEnhancer<TValues>(
         if (!entry?.asyncValidate || entry.asyncValidateMode !== 'onBlur') return draft
         const dirty = (draft.dirtyFields ?? prev.dirtyFields)[ctx.path]
         if (!dirty) return draft
-        const errors = draft.errors ?? prev.errors
-        if (errors[ctx.path]) return draft
+        if (draft.errors?.[ctx.path]) return draft
         const value = getIn((draft.values ?? prev.values) as TValues, ctx.path)
         const path = ctx.path
+        const errors = draft.errors ?? prev.errors
+        const { [path]: _, ...clearedErrors } = errors
         const pending = { ...(draft.pendingFields ?? prev.pendingFields), [path]: true }
         queueMicrotask(() => runAsync(path, value, entry, dispatch, registry))
-        return { ...draft, pendingFields: pending }
+        return { ...draft, errors: clearedErrors, pendingFields: pending }
+      }
+      case A.ARRAY_REMOVE: {
+        if (!ctx.path || ctx.index == null) return draft
+        registry.reindex(ctx.path, { type: 'remove', index: ctx.index })
+        return draft
+      }
+      case A.ARRAY_INSERT: {
+        if (!ctx.path || ctx.index == null) return draft
+        registry.reindex(ctx.path, { type: 'insert', index: ctx.index })
+        return draft
+      }
+      case A.ARRAY_MOVE: {
+        if (!ctx.path || ctx.from == null || ctx.to == null) return draft
+        registry.reindex(ctx.path, { type: 'move', from: ctx.from, to: ctx.to })
+        return draft
+      }
+      case A.ARRAY_SWAP: {
+        if (!ctx.path || ctx.from == null || ctx.to == null) return draft
+        registry.reindex(ctx.path, { type: 'swap', from: ctx.from, to: ctx.to })
+        return draft
       }
       default:
         return draft
@@ -49,18 +73,33 @@ function runAsync(
   path: string, value: unknown,
   entry: FieldValidatorEntry, dispatch: Dispatch, registry: FieldRegistry,
 ): void {
-  const execute = () => {
-    const version = registry.nextVersion(path)
-    entry.asyncValidate!(value).then((error) => {
-      if (registry.getVersion(path) !== version) return
-      dispatch({ type: A.ASYNC_RESOLVE, path, value: error })
-    })
-  }
-
   if (entry.debounce && entry.debounce > 0) {
-    registry.nextVersion(path)
-    registry.setTimer(path, setTimeout(execute, entry.debounce))
+    // Create session immediately so reindex can update its path during debounce wait
+    const sessionId = registry.createSession(path, 0)
+    registry.nextVersion(path) // invalidate any previous debounce
+    registry.setTimer(path, setTimeout(() => {
+      const session = registry.getSession(sessionId)
+      if (!session) return // cleaned up by reindex (removed from array)
+      const currentPath = session.path
+      const version = registry.nextVersion(currentPath)
+      session.version = version
+      entry.asyncValidate!(value).then((error) => {
+        const s = registry.getSession(sessionId)
+        if (!s) return
+        if (registry.getVersion(s.path) !== s.version) return
+        dispatch({ type: A.ASYNC_RESOLVE, path: s.path, value: error })
+        registry.deleteSession(sessionId)
+      })
+    }, entry.debounce))
   } else {
-    execute()
+    const version = registry.nextVersion(path)
+    const sessionId = registry.createSession(path, version)
+    entry.asyncValidate!(value).then((error) => {
+      const session = registry.getSession(sessionId)
+      if (!session) return
+      if (registry.getVersion(session.path) !== session.version) return
+      dispatch({ type: A.ASYNC_RESOLVE, path: session.path, value: error })
+      registry.deleteSession(sessionId)
+    })
   }
 }
