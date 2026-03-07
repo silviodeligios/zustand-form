@@ -1,8 +1,8 @@
 import type { StoreApi } from 'zustand/vanilla'
 import type * as A from './actions'
-import type { FieldApi } from '../field/types'
-import type { TreeApi } from '../tree/types'
-import type { FieldArrayApi } from '../fieldArray/types'
+import type { FieldNamespace } from '../field/types'
+import type { TreeNamespace } from '../tree/types'
+import type { FieldArrayNamespace } from '../fieldArray/types'
 import type { FormSelectors } from '../selectors'
 import type { FieldValidatorEntry } from '../validation/types'
 
@@ -73,9 +73,9 @@ export interface Form<TValues> {
   setState: StoreApi<FormState<TValues>>['setState']
   subscribe: StoreApi<FormState<TValues>>['subscribe']
   getInitialState: StoreApi<FormState<TValues>>['getInitialState']
-  field(path: string): FieldApi<TValues>
-  fieldArray(path: string): FieldArrayApi<TValues>
-  tree(path?: string): TreeApi<TValues>
+  field: FieldNamespace<TValues>
+  fieldArray: FieldArrayNamespace<TValues>
+  tree: TreeNamespace<TValues>
   getValues(): TValues
   reset(nextValues?: Partial<TValues>, options?: DispatchOptions): void
   handleSubmit(

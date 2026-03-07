@@ -46,7 +46,7 @@ export default function FormFooter({ form }: { form: FormStore }) {
       <select
         value={focused ?? ""}
         onChange={(e) => {
-          if (e.target.value) form.field(e.target.value).focus();
+          if (e.target.value) form.field.focus(e.target.value);
         }}
         style={{
           background: "#313244",

@@ -1,4 +1,5 @@
 import { useZForm } from "zform";
+import { devtools } from "zustand/middleware";
 import { defaultValues, resolver, sleep } from "./formConfig";
 import type { FormValues } from "./formConfig";
 import FormActions from "./components/FormActions";
@@ -9,7 +10,12 @@ import CategoryExample from "./examples/CategoryExample";
 import NestedArrayExample from "./examples/NestedArrayExample";
 
 export default function App() {
-  const form = useZForm<FormValues>({ defaultValues, resolver, resolverMode: "onChange" });
+  const form = useZForm<FormValues>({
+    defaultValues,
+    resolver,
+    resolverMode: "onChange",
+    middleware: (init) => devtools(init, { name: "zustand-form" }),
+  });
 
   return (
     <>

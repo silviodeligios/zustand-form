@@ -11,8 +11,7 @@ export function useZFieldArray<TValues>(
   form: FormHook<TValues>,
   path: string,
 ): UseZFieldArrayReturn {
-  const api = useMemo(() => form.fieldArray(path), [form, path])
-  const length = form(api.select.length)
+  const length = form(form.fieldArray.select.length(path))
   const [version, setVersion] = useState(0)
   const keysRef = useRef<string[]>([])
 
@@ -27,41 +26,42 @@ export function useZFieldArray<TValues>(
   }
 
   const bump = useCallback(() => setVersion(v => v + 1), [])
+  const fa = form.fieldArray
 
   const append = useCallback((value: unknown, opts?: DispatchOptions) => {
     keysRef.current = [...keysRef.current, generateKey()]
-    api.append(value, opts)
+    fa.append(path, value, opts)
     bump()
-  }, [api, bump])
+  }, [fa, path, bump])
 
   const prepend = useCallback((value: unknown, opts?: DispatchOptions) => {
     keysRef.current = [generateKey(), ...keysRef.current]
-    api.prepend(value, opts)
+    fa.prepend(path, value, opts)
     bump()
-  }, [api, bump])
+  }, [fa, path, bump])
 
   const remove = useCallback((index: number, opts?: DispatchOptions) => {
     keysRef.current = keysRef.current.filter((_, i) => i !== index)
-    api.remove(index, opts)
+    fa.remove(path, index, opts)
     bump()
-  }, [api, bump])
+  }, [fa, path, bump])
 
   const insert = useCallback((index: number, value: unknown, opts?: DispatchOptions) => {
     const next = [...keysRef.current]
     next.splice(index, 0, generateKey())
     keysRef.current = next
-    api.insert(index, value, opts)
+    fa.insert(path, index, value, opts)
     bump()
-  }, [api, bump])
+  }, [fa, path, bump])
 
   const move = useCallback((from: number, to: number, opts?: DispatchOptions) => {
     const next = [...keysRef.current]
     const [item] = next.splice(from, 1)
     next.splice(to, 0, item)
     keysRef.current = next
-    api.move(from, to, opts)
+    fa.move(path, from, to, opts)
     bump()
-  }, [api, bump])
+  }, [fa, path, bump])
 
   const swap = useCallback((indexA: number, indexB: number, opts?: DispatchOptions) => {
     const next = [...keysRef.current]
@@ -69,15 +69,15 @@ export function useZFieldArray<TValues>(
     next[indexA] = next[indexB]
     next[indexB] = tmp
     keysRef.current = next
-    api.swap(indexA, indexB, opts)
+    fa.swap(path, indexA, indexB, opts)
     bump()
-  }, [api, bump])
+  }, [fa, path, bump])
 
   const setValue = useCallback((arr: unknown[], opts?: DispatchOptions) => {
     keysRef.current = arr.map(() => generateKey())
-    api.setValue(arr, opts)
+    fa.setValue(path, arr, opts)
     bump()
-  }, [api, bump])
+  }, [fa, path, bump])
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const fields = useMemo(

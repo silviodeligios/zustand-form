@@ -1,26 +1,26 @@
 import type { FormState, DispatchOptions } from '../core/types'
 
-export interface TreeSelectors<TValues> {
-  dirty:         (s: FormState<TValues>) => boolean
-  touched:       (s: FormState<TValues>) => boolean
-  pending:       (s: FormState<TValues>) => boolean
-  valid:         (s: FormState<TValues>) => boolean
-  errors:        (s: FormState<TValues>) => Record<string, string>
-  dirtyFields:   (s: FormState<TValues>) => string[]
-  touchedFields: (s: FormState<TValues>) => string[]
-  errorCount:    (s: FormState<TValues>) => number
-}
+type Selector<TValues, R> = (s: FormState<TValues>) => R
 
-export interface TreeApi<TValues> {
-  isDirty(): boolean
-  isTouched(): boolean
-  isPending(): boolean
-  isValid(): boolean
-  getErrors(): Record<string, string>
-  getDirtyFields(): string[]
-  getTouchedFields(): string[]
-  clearErrors(options?: DispatchOptions): void
-  reset(options?: DispatchOptions): void
-  validate(options?: DispatchOptions): void
-  select: TreeSelectors<TValues>
+export interface TreeNamespace<TValues> {
+  isDirty(path?: string): boolean
+  isTouched(path?: string): boolean
+  isPending(path?: string): boolean
+  isValid(path?: string): boolean
+  getErrors(path?: string): Record<string, string>
+  getDirtyFields(path?: string): string[]
+  getTouchedFields(path?: string): string[]
+  clearErrors(path?: string, options?: DispatchOptions): void
+  reset(path?: string, options?: DispatchOptions): void
+  validate(path?: string, options?: DispatchOptions): void
+  select: {
+    dirty(path?: string): Selector<TValues, boolean>
+    touched(path?: string): Selector<TValues, boolean>
+    pending(path?: string): Selector<TValues, boolean>
+    valid(path?: string): Selector<TValues, boolean>
+    errors(path?: string): Selector<TValues, Record<string, string>>
+    dirtyFields(path?: string): Selector<TValues, string[]>
+    touchedFields(path?: string): Selector<TValues, string[]>
+    errorCount(path?: string): Selector<TValues, number>
+  }
 }

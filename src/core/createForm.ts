@@ -2,9 +2,9 @@ import { createStore } from 'zustand/vanilla'
 import type { FormState, Form, ActionContext, Enhancer, NamedEnhancer } from './types'
 import type { FormSelectors } from '../selectors'
 import * as A from './actions'
-import { createFieldApi } from '../field/createFieldApi'
-import { createFieldArrayApi } from '../fieldArray/createFieldArrayApi'
-import { createTreeApi } from '../tree/createTreeApi'
+import { createFieldNamespace } from '../field/createField'
+import { createFieldArrayNamespace } from '../fieldArray/createFieldArray'
+import { createTreeNamespace } from '../tree/createTree'
 import type { FormResolver, FieldValidateMode } from '../validation/types'
 import { createFieldRegistry } from '../validation/registry'
 import { valuesEnhancer } from '../layers/values'
@@ -74,9 +74,9 @@ export function createForm<TValues>(config: FormConfig<TValues>): Form<TValues> 
   return {
     getState: store.getState, setState: store.setState,
     subscribe: store.subscribe, getInitialState: store.getInitialState,
-    field: (p) => createFieldApi(store, dispatch, p),
-    fieldArray: (p) => createFieldArrayApi(store, dispatch, p),
-    tree: (p?) => createTreeApi(store, dispatch, p),
+    field: createFieldNamespace(store, dispatch),
+    fieldArray: createFieldArrayNamespace(store, dispatch),
+    tree: createTreeNamespace(store, dispatch),
     getValues: () => store.getState().values,
     isSubmitting: () => store.getState().isSubmitting,
     submitCount: () => store.getState().submitCount,

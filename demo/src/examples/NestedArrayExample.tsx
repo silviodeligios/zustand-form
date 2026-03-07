@@ -22,22 +22,17 @@ const ItemField = memo(function ItemField({
   form,
   sectionIndex,
   itemIndex,
-  onRemove,
-  onMoveUp,
-  onMoveDown,
   isFirst,
   isLast,
 }: {
   form: FormStore;
   sectionIndex: number;
   itemIndex: number;
-  onRemove: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
   isFirst: boolean;
   isLast: boolean;
 }) {
-  const path = `sections.${sectionIndex}.items.${itemIndex}.label`;
+  const itemsPath = `sections.${sectionIndex}.items`;
+  const path = `${itemsPath}.${itemIndex}.label`;
   const { field, fieldState } = useZField(form, path);
 
   const renderCount = useRef(0);
@@ -68,9 +63,9 @@ const ItemField = memo(function ItemField({
             boxSizing: "border-box",
           }}
         />
-        <button type="button" style={btnStyle} disabled={isFirst} onClick={onMoveUp} title="Move up">↑</button>
-        <button type="button" style={btnStyle} disabled={isLast} onClick={onMoveDown} title="Move down">↓</button>
-        <button type="button" style={dangerBtn} onClick={onRemove} title="Remove">✕</button>
+        <button type="button" style={btnStyle} disabled={isFirst} onClick={() => form.fieldArray.move(itemsPath, itemIndex, itemIndex - 1)} title="Move up">↑</button>
+        <button type="button" style={btnStyle} disabled={isLast} onClick={() => form.fieldArray.move(itemsPath, itemIndex, itemIndex + 1)} title="Move down">↓</button>
+        <button type="button" style={dangerBtn} onClick={() => form.fieldArray.remove(itemsPath, itemIndex)} title="Remove">✕</button>
       </div>
     </FieldWrapper>
   );
@@ -140,25 +135,19 @@ const SectionTitleField = memo(function SectionTitleField({
 // ---------------------------------------------------------------------------
 // Section block
 // ---------------------------------------------------------------------------
-function SectionBlock({
+const SectionBlock = memo(function SectionBlock({
   form,
   sectionIndex,
-  onRemove,
-  onMoveUp,
-  onMoveDown,
   isFirst,
   isLast,
 }: {
   form: FormStore;
   sectionIndex: number;
-  onRemove: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
   isFirst: boolean;
   isLast: boolean;
 }) {
   const itemsPath = `sections.${sectionIndex}.items`;
-  const { fields: items, append: appendItem, remove: removeItem, move: moveItem } =
+  const { fields: items, append: appendItem } =
     useZFieldArray<FormValues>(form, itemsPath);
 
   return (
@@ -167,22 +156,19 @@ function SectionBlock({
         <div style={{ flex: 1 }}>
           <SectionTitleField form={form} sectionIndex={sectionIndex} />
         </div>
-        <button type="button" style={btnStyle} disabled={isFirst} onClick={onMoveUp} title="Move section up">↑</button>
-        <button type="button" style={btnStyle} disabled={isLast} onClick={onMoveDown} title="Move section down">↓</button>
-        <button type="button" style={dangerBtn} onClick={onRemove} title="Remove section">✕ Section</button>
+        <button type="button" style={btnStyle} disabled={isFirst} onClick={() => form.fieldArray.move("sections", sectionIndex, sectionIndex - 1)} title="Move section up">↑</button>
+        <button type="button" style={btnStyle} disabled={isLast} onClick={() => form.fieldArray.move("sections", sectionIndex, sectionIndex + 1)} title="Move section down">↓</button>
+        <button type="button" style={dangerBtn} onClick={() => form.fieldArray.remove("sections", sectionIndex)} title="Remove section">✕ Section</button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingLeft: 16 }}>
-        {(items as unknown[]).map((_item, idx) => (
+        {items.map((item) => (
           <ItemField
-            key={idx}
+            key={item.id}
             form={form}
             sectionIndex={sectionIndex}
-            itemIndex={idx}
-            onRemove={() => removeItem(idx)}
-            onMoveUp={() => moveItem(idx, idx - 1)}
-            onMoveDown={() => moveItem(idx, idx + 1)}
-            isFirst={idx === 0}
-            isLast={idx === items.length - 1}
+            itemIndex={item.index}
+            isFirst={item.index === 0}
+            isLast={item.index === items.length - 1}
           />
         ))}
         <button
@@ -195,13 +181,13 @@ function SectionBlock({
       </div>
     </div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Main example
 // ---------------------------------------------------------------------------
 export default function NestedArrayExample({ form }: { form: FormStore }) {
-  const { fields: sections, append: appendSection, remove: removeSection, move: moveSection } =
+  const { fields: sections, append: appendSection } =
     useZFieldArray<FormValues>(form, "sections");
 
   return (
@@ -220,16 +206,13 @@ const { field, fieldState } = useZField(form, \`sections.\${i}.items.\${j}.label
       }
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {(sections as unknown[]).map((_sec, idx) => (
+        {sections.map((sec) => (
           <SectionBlock
-            key={idx}
+            key={sec.id}
             form={form}
-            sectionIndex={idx}
-            onRemove={() => removeSection(idx)}
-            onMoveUp={() => moveSection(idx, idx - 1)}
-            onMoveDown={() => moveSection(idx, idx + 1)}
-            isFirst={idx === 0}
-            isLast={idx === sections.length - 1}
+            sectionIndex={sec.index}
+            isFirst={sec.index === 0}
+            isLast={sec.index === sections.length - 1}
           />
         ))}
         <button

@@ -5,20 +5,18 @@ export interface FieldArrayItem {
   index: number
 }
 
-export interface FieldArraySelectors<TValues> {
-  length: (s: FormState<TValues>) => number
-}
+type Selector<TValues, R> = (s: FormState<TValues>) => R
 
-export interface FieldArrayApi<TValues> {
-  getLength(): number
-  setValue(arr: unknown[], options?: DispatchOptions): void
-
-  append(value: unknown, options?: DispatchOptions): void
-  prepend(value: unknown, options?: DispatchOptions): void
-  remove(index: number, options?: DispatchOptions): void
-  insert(index: number, value: unknown, options?: DispatchOptions): void
-  move(from: number, to: number, options?: DispatchOptions): void
-  swap(indexA: number, indexB: number, options?: DispatchOptions): void
-
-  select: FieldArraySelectors<TValues>
+export interface FieldArrayNamespace<TValues> {
+  getLength(path: string): number
+  setValue(path: string, arr: unknown[], options?: DispatchOptions): void
+  append(path: string, value: unknown, options?: DispatchOptions): void
+  prepend(path: string, value: unknown, options?: DispatchOptions): void
+  remove(path: string, index: number, options?: DispatchOptions): void
+  insert(path: string, index: number, value: unknown, options?: DispatchOptions): void
+  move(path: string, from: number, to: number, options?: DispatchOptions): void
+  swap(path: string, indexA: number, indexB: number, options?: DispatchOptions): void
+  select: {
+    length(path: string): Selector<TValues, number>
+  }
 }
