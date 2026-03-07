@@ -6,7 +6,7 @@ A React form library built on [Zustand](https://github.com/pmndrs/zustand). The 
 
 ```
 React layer
-  useZForm (callable selector) · useZField · useZFieldArray
+  useZForm (callable selector) · useZField · useZFieldArray · FormProvider
 
 API (vanilla, framework-agnostic)
   form.field.method(path) · form.tree.method(path?) · form-level methods
@@ -23,7 +23,7 @@ When an action is dispatched, every enhancer runs in order against the same `pre
 ## Quick start
 
 ```tsx
-import { useZForm, useZField } from "zform";
+import { useZForm, useZField, FormProvider } from "zform";
 import { devtools } from "zustand/middleware";
 
 function App() {
@@ -35,16 +35,18 @@ function App() {
   });
 
   return (
-    <form onSubmit={(e) => {
-      form.handleSubmit(
-        async (values) => await saveToServer(values),
-        (errors) => console.log("invalid", errors),
-      )(e.nativeEvent);
-    }}>
-      <NameField form={form} />
-      <EmailField form={form} />
-      <button type="submit">Save</button>
-    </form>
+    <FormProvider value={form}>
+      <form onSubmit={(e) => {
+        form.handleSubmit(
+          async (values) => await saveToServer(values),
+          (errors) => console.log("invalid", errors),
+        )(e.nativeEvent);
+      }}>
+        <NameField />
+        <EmailField />
+        <button type="submit">Save</button>
+      </form>
+    </FormProvider>
   );
 }
 ```
@@ -53,9 +55,21 @@ function App() {
 
 Returns `{ field, fieldState }` like React Hook Form's `useController`. Handlers are memoized — child components wrapped in `React.memo` will skip re-renders when only the parent changes.
 
+Both signatures are supported:
+
 ```tsx
-function NameField({ form }) {
-  const { field, fieldState } = useZField(form, "name");
+// Explicit form prop
+const { field, fieldState } = useZField(form, "name");
+
+// From context (uses FormProvider)
+const { field, fieldState } = useZField("name");
+```
+
+When `form` is not passed, `useZField` calls `useFormContext()` internally. If no `FormProvider` is found, it throws.
+
+```tsx
+function NameField() {
+  const { field, fieldState } = useZField("name");
 
   return (
     <div>
@@ -79,17 +93,43 @@ When `form.field.focus(path)` is called programmatically, `useZField` detects th
 
 ## Field-level validation
 
-`useZField` accepts sync and async validators. The validation order is: field-level sync → schema resolver → field-level async. Async only fires if sync and schema both pass and the field is dirty.
+`useZField` accepts sync and async validators as its last argument (with or without the `form` prop):
 
 ```tsx
+// With explicit form
 const { field, fieldState } = useZField(form, "email", {
   validate: (v) => (!String(v).includes("@") ? "Must contain @" : undefined),
-  validateMode: "onChange",
   asyncValidate: (v) => checkEmailAvailability(v),
-  asyncValidateMode: "onChange",
-  debounce: 1000,
+  debounce: 500,
+});
+
+// From context
+const { field, fieldState } = useZField("email", {
+  validate: (v) => (!String(v).includes("@") ? "Must contain @" : undefined),
+  asyncValidate: (v) => checkEmailAvailability(v),
+  debounce: 500,
 });
 ```
+
+### Validation order and priority
+
+The pipeline runs in this order: **field-level sync → schema resolver → async**. Priority flows top-down:
+
+1. **Field sync** (`validate`) — runs first. If it returns an error, schema and async are both skipped for this field.
+2. **Schema** (`resolver.validateField`) — runs if field sync passed. If it returns an error, async is skipped.
+3. **Async** (`asyncValidate`) — runs only if both sync and schema passed, and the field is dirty. Sets `pending: true` while in-flight.
+
+When a sync or schema error appears while an async validation is already in-flight, the async is **automatically cancelled**: the pending state is cleared immediately, and the stale async result is discarded when it resolves. This prevents async results from overwriting sync errors.
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `validate` | — | Sync validator: `(value) => string \| undefined` |
+| `validateMode` | `"onChange"` | When sync runs: `"onChange"` or `"onBlur"` |
+| `asyncValidate` | — | Async validator: `(value) => Promise<string \| undefined>` |
+| `asyncValidateMode` | `"onChange"` | When async runs: `"onChange"` or `"onBlur"` |
+| `debounce` | — | Debounce delay (ms) before async fires |
 
 ## Schema validation (resolver)
 
@@ -111,13 +151,23 @@ const form = useZForm({ defaultValues, resolver, resolverMode: "onChange" });
 
 `useZFieldArray` returns mutation methods that automatically reindex all path-keyed records (dirty, errors, touched, pending). Each item has a stable `id` for React keys and an `index` for path construction.
 
-```tsx
-const { fields, append, remove, insert, move } = useZFieldArray(form, "sections");
+Both signatures are supported:
 
+```tsx
+// Explicit form prop
+const { fields, append, remove, move } = useZFieldArray(form, "sections");
+
+// From context
+const { fields, append, remove, move } = useZFieldArray("sections");
+```
+
+```tsx
 {fields.map((item) => (
-  <SectionEditor key={item.id} form={form} index={item.index} />
+  <SectionEditor key={item.id} index={item.index} />
 ))}
 ```
+
+Available methods: `append`, `prepend`, `remove`, `insert`, `move`, `swap`, `setValue`.
 
 You can also call array methods directly on the namespace:
 
@@ -125,6 +175,42 @@ You can also call array methods directly on the namespace:
 form.fieldArray.append("sections", { title: "" });
 form.fieldArray.remove("sections", 2);
 form.fieldArray.move("sections", 0, 3);
+```
+
+## `FormProvider` + `useFormContext`
+
+Context-based API to avoid prop drilling. Used automatically by `useZField` and `useZFieldArray` when no `form` argument is passed.
+
+```tsx
+function App() {
+  const form = useZForm<FormValues>({ defaultValues });
+
+  return (
+    <FormProvider value={form}>
+      <NameField />
+      <EmailField />
+    </FormProvider>
+  );
+}
+
+function NameField() {
+  const { field, fieldState } = useZField("name");
+  // ...
+}
+
+function EmailField() {
+  const { field, fieldState } = useZField("email", {
+    asyncValidate: checkEmail,
+    debounce: 500,
+  });
+  // ...
+}
+```
+
+You can also call `useFormContext()` directly if you need the form instance:
+
+```tsx
+const form = useFormContext();
 ```
 
 ## `form.field.method(path)` — field namespace
@@ -172,22 +258,6 @@ form.tree.isValid();
 // Cached selectors
 const errorCount = form(form.tree.select.errorCount("items"));
 const isValid = form(form.tree.select.valid());
-```
-
-## `FormProvider` + `useFormContext`
-
-Optional context to avoid prop drilling.
-
-```tsx
-<FormProvider value={form}>
-  <NameField />
-</FormProvider>
-
-function NameField() {
-  const form = useFormContext();
-  const { field, fieldState } = useZField(form, "name");
-  // ...
-}
 ```
 
 ## It's just a Zustand store
@@ -247,14 +317,26 @@ type Enhancer<TValues> = (
 
 The built-in pipeline runs in this order:
 
-1. **values** — sets values, handles array mutations (append, remove, insert, move)
+1. **values** — sets values, handles array mutations (append, remove, insert, move, swap)
 2. **touched** — marks touched on focus, reindexes on array ops
 3. **dirty** — compares against defaultValues with deep equality
 4. **validation** — per-field sync validators from registry
 5. **schemaValidation** — form-level resolver, skips if field already has error
-6. **asyncValidation** — async validators with debounce, dirty guard, version-based stale cancellation
+6. **asyncValidation** — async validators with debounce, version-based stale cancellation, auto-cancel on sync error
 7. **pending** — tracks pendingFields lifecycle
 8. **submit** — isSubmitting, submitCount, isSubmitSuccessful
+
+You can override the pipeline via the `enhancers` option:
+
+```ts
+const form = createForm({
+  initialState: { values: defaultValues },
+  enhancers: (defaults) => [
+    ...defaults,
+    { name: 'myEnhancer', enhancer: myCustomEnhancer },
+  ],
+});
+```
 
 ## Usage outside React
 
@@ -264,7 +346,7 @@ The built-in pipeline runs in this order:
 import { createForm } from "zform";
 
 const form = createForm<FormValues>({
-  defaultValues: { name: "", email: "" },
+  initialState: { values: { name: "", email: "" } },
   resolver: myResolver,
 });
 
