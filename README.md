@@ -9,7 +9,7 @@ React layer
   useZForm (callable selector) · useZField · useZFieldArray
 
 API (vanilla, framework-agnostic)
-  form.field(path) · form.tree(path?) · form-level methods
+  form.field.method(path) · form.tree.method(path?) · form-level methods
 
 Action pipeline (dispatch -> enhancers -> setState)
   values · touched · dirty · validation · schemaValidation · asyncValidation · pending · submit
@@ -24,12 +24,14 @@ When an action is dispatched, every enhancer runs in order against the same `pre
 
 ```tsx
 import { useZForm, useZField } from "zform";
+import { devtools } from "zustand/middleware";
 
 function App() {
   const form = useZForm<FormValues>({
     defaultValues: { name: "", email: "" },
     resolver: myResolver,
     resolverMode: "onChange",
+    middleware: (init) => devtools(init, { name: "zustand-form" }),
   });
 
   return (
@@ -49,7 +51,7 @@ function App() {
 
 ## `useZField` — bind a field
 
-Returns `{ field, fieldState }` like React Hook Form's `useController`.
+Returns `{ field, fieldState }` like React Hook Form's `useController`. Handlers are memoized — child components wrapped in `React.memo` will skip re-renders when only the parent changes.
 
 ```tsx
 function NameField({ form }) {
@@ -71,9 +73,13 @@ function NameField({ form }) {
 }
 ```
 
+`fieldState` includes: `value`, `dirty`, `touched`, `error`, `pending`, `focused`.
+
+When `form.field.focus(path)` is called programmatically, `useZField` detects the change and calls `el.focus()` on the bound ref automatically.
+
 ## Field-level validation
 
-`useZField` accepts sync and async validators. Sync runs first; async only fires if sync passes and the field is dirty.
+`useZField` accepts sync and async validators. The validation order is: field-level sync → schema resolver → field-level async. Async only fires if sync and schema both pass and the field is dirty.
 
 ```tsx
 const { field, fieldState } = useZField(form, "email", {
@@ -103,54 +109,69 @@ const form = useZForm({ defaultValues, resolver, resolverMode: "onChange" });
 
 ## Arrays
 
-`useZFieldArray` returns mutation methods that automatically reindex all path-keyed records (dirty, errors, touched, pending).
+`useZFieldArray` returns mutation methods that automatically reindex all path-keyed records (dirty, errors, touched, pending). Each item has a stable `id` for React keys and an `index` for path construction.
 
 ```tsx
 const { fields, append, remove, insert, move } = useZFieldArray(form, "sections");
 
-{fields.map((section, i) => (
-  <SectionEditor key={i} index={i} />
+{fields.map((item) => (
+  <SectionEditor key={item.id} form={form} index={item.index} />
 ))}
 ```
 
-## `form.field(path)` — field API
-
-Operates on the exact path. No recursion on children.
+You can also call array methods directly on the namespace:
 
 ```ts
-const email = form.field("email");
-
-// Imperative getters
-email.getValue();   // current value
-email.isDirty();    // boolean
-email.getError();   // string | undefined
-
-// Setters (dispatch actions)
-email.setValue("test@example.com");
-email.focus();
-email.blur();
-email.validate();
-email.reset();
-
-// Pre-built selectors for form(selector)
-const fieldState = form(email.select.fieldState, shallow);
+form.fieldArray.append("sections", { title: "" });
+form.fieldArray.remove("sections", 2);
+form.fieldArray.move("sections", 0, 3);
 ```
 
-## `form.tree(path?)` — subtree API
+## `form.field.method(path)` — field namespace
+
+Operates on the exact path. No recursion on children. Selectors are cached per path — the same function reference is returned for the same path, so they're safe for zustand subscriptions.
+
+```ts
+// Imperative getters
+form.field.getValue("email");   // current value
+form.field.isDirty("email");    // boolean
+form.field.isTouched("email");  // boolean
+form.field.getError("email");   // string | undefined
+form.field.isPending("email");  // boolean
+
+// Setters (dispatch actions)
+form.field.setValue("email", "test@example.com");
+form.field.focus("email");
+form.field.blur("email");
+form.field.validate("email");
+form.field.reset("email");
+
+// Cached selectors for form(selector)
+const fieldState = form(form.field.select.fieldState("email"), shallow);
+const value = form(form.field.select.value("email"));
+const error = form(form.field.select.error("email"));
+const dirty = form(form.field.select.dirty("email"));
+const focused = form(form.field.select.focused("email"));
+```
+
+## `form.tree.method(path?)` — tree namespace
 
 Operates on the path and all its descendants. Without arguments, operates on the entire form.
 
 ```ts
-const items = form.tree("items");
+// Subtree queries
+form.tree.isDirty("items");      // any dirty field under items.*
+form.tree.isValid("items");      // no errors under items.*
+form.tree.getErrors("items");    // all errors under items.*
+form.tree.clearErrors("items");  // remove all errors under items.*
 
-items.isDirty();      // any dirty field under items.*
-items.isValid();      // no errors under items.*
-items.getErrors();    // all errors under items.*
-items.clearErrors();  // remove all errors under items.*
+// Whole-form queries (no path)
+form.tree.isDirty();
+form.tree.isValid();
 
-// Pre-built selectors
-const errorCount = form(items.select.errorCount);
-const isValid = form(form.tree().select.valid);
+// Cached selectors
+const errorCount = form(form.tree.select.errorCount("items"));
+const isValid = form(form.tree.select.valid());
 ```
 
 ## `FormProvider` + `useFormContext`
@@ -186,7 +207,12 @@ form.subscribe((state, prev) => {
   }
 });
 
-// Devtools — every action shows up as SET_VALUE:email, BLUR:name, etc.
+// Devtools — pass middleware to useZForm
+const form = useZForm({
+  defaultValues,
+  middleware: (init) => devtools(init, { name: "zustand-form" }),
+});
+// Every action shows up as SET_VALUE:email, BLUR:name, etc.
 ```
 
 ## Store state
@@ -229,6 +255,30 @@ The built-in pipeline runs in this order:
 6. **asyncValidation** — async validators with debounce, dirty guard, version-based stale cancellation
 7. **pending** — tracks pendingFields lifecycle
 8. **submit** — isSubmitting, submitCount, isSubmitSuccessful
+
+## Usage outside React
+
+`createForm` returns a vanilla zustand store — no React required. Use it in Node scripts, server actions, tests, or any framework.
+
+```ts
+import { createForm } from "zform";
+
+const form = createForm<FormValues>({
+  defaultValues: { name: "", email: "" },
+  resolver: myResolver,
+});
+
+// Full API available
+form.field.setValue("email", "test@example.com");
+form.field.getValue("email"); // "test@example.com"
+form.tree.isValid();          // boolean
+
+// Subscribe to changes
+form.subscribe((state) => console.log(state.values));
+
+// Read snapshot
+const { values, errors } = form.getState();
+```
 
 ## License
 

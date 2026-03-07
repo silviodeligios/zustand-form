@@ -191,20 +191,7 @@ export default function NestedArrayExample({ form }: { form: FormStore }) {
     useZFieldArray<FormValues>(form, "sections");
 
   return (
-    <DemoExample
-      title="Nested arrays — sections[].items[].label"
-      code={`const { fields, append, remove, move } = useZFieldArray(form, "sections");
-const { fields: items } = useZFieldArray(form, \`sections.\${i}.items\`);
-const { field, fieldState } = useZField(form, \`sections.\${i}.items.\${j}.label\`);`}
-      description={
-        <ul style={{ margin: 0, paddingLeft: 18 }}>
-          <li>Two-level <code>useZFieldArray</code>: sections and items</li>
-          <li><strong>Add / Remove / Move up-down</strong> on both sections and items</li>
-          <li><strong>Resolver</strong> validates all titles and labels dynamically</li>
-          <li><strong>Async validate</strong> on section titles — type <code>duplicate</code></li>
-        </ul>
-      }
-    >
+    <DemoExample title="Nested arrays — sections[].items[].label">
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {sections.map((sec) => (
           <SectionBlock

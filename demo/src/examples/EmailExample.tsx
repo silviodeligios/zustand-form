@@ -60,28 +60,7 @@ const EmailField = memo(function EmailField({ form }: { form: FormStore }) {
 
 export default function EmailExample({ form }: { form: FormStore }) {
   return (
-    <DemoExample
-      title="Async field validation + debounce"
-      code={`const asyncValidate = (value) => {
-  setIsCalling(true);
-  return checkEmailAvailability(value).finally(() => setIsCalling(false));
-};
-
-const { field, fieldState } =
-  useZField(form, "email", {
-    validate: validateEmailSync,
-    asyncValidate,
-    debounce: 1000,
-  });`}
-      description={
-        <ul style={{ margin: 0, paddingLeft: 18 }}>
-          <li><strong>Resolver</strong> (schema) — empty field shows "Email required"</li>
-          <li><strong>Sync validate</strong> — missing <code>@</code> fires immediately (try <code>foo</code>)</li>
-          <li><strong>Async validate</strong> — server check after 1s (try <code>taken@example.com</code>)</li>
-          <li><strong>Debounce 1000ms</strong> — <code>pending</code> starts on keystroke, <code>calling</code> lights up when the API fires</li>
-        </ul>
-      }
-    >
+    <DemoExample title="Async field validation + debounce">
       <EmailField form={form} />
     </DemoExample>
   );
