@@ -57,6 +57,12 @@ export type Enhancer<TValues> = (
   draft: Partial<FormState<TValues>>,
 ) => Partial<FormState<TValues>>
 
+/** Named enhancer: wraps an Enhancer with a string tag for pipeline manipulation */
+export interface NamedEnhancer<TValues> {
+  name: string
+  enhancer: Enhancer<TValues>
+}
+
 // ---------------------------------------------------------------------------
 // Form (top-level interface)
 // ---------------------------------------------------------------------------

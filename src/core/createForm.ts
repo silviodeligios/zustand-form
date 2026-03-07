@@ -1,6 +1,5 @@
 import { createStore } from 'zustand/vanilla'
-import { devtools } from 'zustand/middleware'
-import type { FormState, Form, ActionContext, Enhancer } from './types'
+import type { FormState, Form, ActionContext, Enhancer, NamedEnhancer } from './types'
 import type { FormSelectors } from '../selectors'
 import * as A from './actions'
 import { createFieldApi } from '../path/createPathApi'
@@ -17,31 +16,43 @@ import { asyncValidationEnhancer } from '../layers/asyncValidation'
 import { submitEnhancer } from '../layers/submit'
 
 export interface FormConfig<TValues> {
-  defaultValues: TValues
+  initialState: Partial<FormState<TValues>>
   resolver?: FormResolver<TValues>
   resolverMode?: FieldValidateMode
+  enhancers?: (defaults: NamedEnhancer<TValues>[]) => (NamedEnhancer<TValues> | Enhancer<TValues>)[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  middleware?: (initializer: () => FormState<TValues>) => any
 }
 
 export function createForm<TValues>(config: FormConfig<TValues>): Form<TValues> {
   const initialState: FormState<TValues> = {
-    values: config.defaultValues, dirtyFields: {}, touchedFields: {},
+    values: {} as TValues, dirtyFields: {}, touchedFields: {},
     errors: {}, pendingFields: {}, focusedField: null,
     isSubmitting: false, submitCount: 0, isSubmitSuccessful: false,
+    ...config.initialState,
   }
+  const defaultValues = initialState.values
 
-  const store = createStore<FormState<TValues>>()(devtools(() => initialState, { name: 'zForm' }))
+  const initializer = () => initialState
+  const store = createStore<FormState<TValues>>()(config.middleware ? config.middleware(initializer) : initializer)
   const registry = createFieldRegistry(dispatch)
 
-  const enhancers: Enhancer<TValues>[] = [
-    valuesEnhancer(config.defaultValues),
-    touchedEnhancer(),
-    dirtyEnhancer(config.defaultValues),
-    validationEnhancer(registry),
-    ...(config.resolver ? [schemaValidationEnhancer<TValues>(config.resolver, config.resolverMode)] : []),
-    asyncValidationEnhancer(registry, dispatch),
-    pendingEnhancer(),
-    submitEnhancer(),
+  const defaultEnhancers: NamedEnhancer<TValues>[] = [
+    { name: 'values',          enhancer: valuesEnhancer(defaultValues) },
+    { name: 'touched',         enhancer: touchedEnhancer() },
+    { name: 'dirty',           enhancer: dirtyEnhancer(defaultValues) },
+    { name: 'validation',      enhancer: validationEnhancer(registry) },
+    ...(config.resolver
+      ? [{ name: 'schemaValidation', enhancer: schemaValidationEnhancer<TValues>(config.resolver, config.resolverMode) }]
+      : []),
+    { name: 'asyncValidation', enhancer: asyncValidationEnhancer(registry, dispatch) },
+    { name: 'pending',         enhancer: pendingEnhancer() },
+    { name: 'submit',          enhancer: submitEnhancer() },
   ]
+
+  const enhancers: Enhancer<TValues>[] = config.enhancers
+    ? config.enhancers(defaultEnhancers).map(e => typeof e === 'function' ? e : e.enhancer)
+    : defaultEnhancers.map(e => e.enhancer)
 
   function dispatch(ctx: ActionContext): void {
     const prev = store.getState()
@@ -49,7 +60,7 @@ export function createForm<TValues>(config: FormConfig<TValues>): Form<TValues> 
     for (const e of enhancers) draft = e(ctx, prev, draft)
     if (Object.keys(draft).length > 0) {
       const action = ctx.path ? `${ctx.type}:${ctx.path}` : ctx.type
-      store.setState((s) => ({ ...s, ...draft }), false, action)
+      ;(store.setState as Function)((s: FormState<TValues>) => ({ ...s, ...draft }), false, action)
     }
   }
 

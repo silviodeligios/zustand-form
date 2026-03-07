@@ -1,10 +1,15 @@
 // Core
 export { createForm, type FormConfig } from './core/createForm'
 export type {
-  FormState, DispatchOptions, ActionContext, ActionType, Dispatch, Enhancer, Form,
+  FormState, DispatchOptions, ActionContext, ActionType, Dispatch, Enhancer, NamedEnhancer, Form,
 } from './core/types'
 export * as Actions from './core/actions'
 export { getIn } from './core/utils'
+export {
+  valuesEnhancer, touchedEnhancer, dirtyEnhancer,
+  validationEnhancer, pendingEnhancer, submitEnhancer,
+  schemaValidationEnhancer, asyncValidationEnhancer,
+} from './layers'
 export { reindexPathKeyedRecord, type ArrayReindexOp } from './core/arrayReindex'
 
 // Field
@@ -24,5 +29,5 @@ export {
   useZForm, useZField, useZFieldArray, FormProvider, useFormContext,
 } from './react'
 export type {
-  FormHook, UseZFieldOptions, UseZFieldReturn, UseZFieldArrayReturn,
+  FormHook, UseZFormConfig, UseZFieldOptions, UseZFieldReturn, UseZFieldArrayReturn,
 } from './react'

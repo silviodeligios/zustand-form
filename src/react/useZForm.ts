@@ -1,14 +1,30 @@
 import { useRef, useCallback } from 'react'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { createForm } from '../core/createForm'
-import type { FormConfig } from '../core/createForm'
-import type { FormState, Form } from '../core/types'
+import type { FormState, Form, Enhancer, NamedEnhancer } from '../core/types'
+import type { FormResolver, FieldValidateMode } from '../validation/types'
 import type { FormHook } from './types'
 
-export function useZForm<TValues>(config: FormConfig<TValues>): FormHook<TValues> {
+export interface UseZFormConfig<TValues> {
+  defaultValues: TValues
+  resolver?: FormResolver<TValues>
+  resolverMode?: FieldValidateMode
+  enhancers?: (defaults: NamedEnhancer<TValues>[]) => (NamedEnhancer<TValues> | Enhancer<TValues>)[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  middleware?: (initializer: () => FormState<TValues>) => any
+}
+
+export function useZForm<TValues>(config: UseZFormConfig<TValues>): FormHook<TValues> {
   const formRef = useRef<Form<TValues>>()
   if (!formRef.current) {
-    formRef.current = createForm(config)
+    const initialState: Partial<FormState<TValues>> = { values: config.defaultValues }
+    formRef.current = createForm({
+      initialState,
+      resolver: config.resolver,
+      resolverMode: config.resolverMode,
+      enhancers: config.enhancers,
+      middleware: config.middleware,
+    })
   }
   const form = formRef.current
 

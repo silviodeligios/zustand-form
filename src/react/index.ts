@@ -1,4 +1,4 @@
-export { useZForm } from './useZForm'
+export { useZForm, type UseZFormConfig } from './useZForm'
 export { useZField } from './useZField'
 export { useZFieldArray } from './useZFieldArray'
 export { FormProvider, useFormContext } from './context'
