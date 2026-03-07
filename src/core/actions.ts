@@ -26,6 +26,7 @@ export const ARRAY_APPEND = 'ARRAY_APPEND' as const
 export const ARRAY_REMOVE = 'ARRAY_REMOVE' as const
 export const ARRAY_INSERT = 'ARRAY_INSERT' as const
 export const ARRAY_MOVE = 'ARRAY_MOVE' as const
+export const ARRAY_SWAP = 'ARRAY_SWAP' as const
 
 // Form-level actions
 export const RESET_FORM = 'RESET_FORM' as const

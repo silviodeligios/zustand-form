@@ -1,7 +1,8 @@
 import type { StoreApi } from 'zustand/vanilla'
 import type * as A from './actions'
-import type { FieldApi } from '../path/types'
+import type { FieldApi } from '../field/types'
 import type { TreeApi } from '../tree/types'
+import type { FieldArrayApi } from '../fieldArray/types'
 import type { FormSelectors } from '../selectors'
 import type { FieldValidatorEntry } from '../validation/types'
 
@@ -35,7 +36,7 @@ export type ActionType =
   | typeof A.VALIDATE_FIELD | typeof A.RESET_FIELD
   | typeof A.PENDING_START | typeof A.PENDING_END | typeof A.ASYNC_RESOLVE
   | typeof A.CLEAR_ERRORS_BRANCH | typeof A.RESET_BRANCH | typeof A.VALIDATE_BRANCH
-  | typeof A.ARRAY_APPEND | typeof A.ARRAY_REMOVE | typeof A.ARRAY_INSERT | typeof A.ARRAY_MOVE
+  | typeof A.ARRAY_APPEND | typeof A.ARRAY_REMOVE | typeof A.ARRAY_INSERT | typeof A.ARRAY_MOVE | typeof A.ARRAY_SWAP
   | typeof A.RESET_FORM | typeof A.SUBMIT | typeof A.SUBMIT_SUCCESS | typeof A.SUBMIT_FAILURE
 
 export interface ActionContext {
@@ -73,6 +74,7 @@ export interface Form<TValues> {
   subscribe: StoreApi<FormState<TValues>>['subscribe']
   getInitialState: StoreApi<FormState<TValues>>['getInitialState']
   field(path: string): FieldApi<TValues>
+  fieldArray(path: string): FieldArrayApi<TValues>
   tree(path?: string): TreeApi<TValues>
   getValues(): TValues
   reset(nextValues?: Partial<TValues>, options?: DispatchOptions): void

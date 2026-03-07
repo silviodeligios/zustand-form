@@ -38,6 +38,15 @@ export function valuesEnhancer<TValues>(defaultValues: TValues): Enhancer<TValue
         arr.splice(ctx.to, 0, item)
         return { ...draft, values: setIn(base, ctx.path, arr) as TValues }
       }
+      case A.ARRAY_SWAP: {
+        if (!ctx.path || ctx.from == null || ctx.to == null) return draft
+        const base = draft.values ?? prev.values
+        const arr = [...((getIn(base, ctx.path) as unknown[]) ?? [])]
+        const tmp = arr[ctx.from]
+        arr[ctx.from] = arr[ctx.to]
+        arr[ctx.to] = tmp
+        return { ...draft, values: setIn(base, ctx.path, arr) as TValues }
+      }
       case A.RESET_FORM: {
         const next = ctx.value
           ? { ...defaultValues, ...(ctx.value as Partial<TValues>) }

@@ -13,10 +13,13 @@ export {
 export { reindexPathKeyedRecord, type ArrayReindexOp } from './core/arrayReindex'
 
 // Field
-export type { FieldApi, FieldSelectors, FieldState } from './path/types'
+export type { FieldApi, FieldSelectors, FieldState } from './field/types'
 
 // Tree
 export type { TreeApi, TreeSelectors } from './tree/types'
+
+// Field Array
+export type { FieldArrayApi, FieldArraySelectors, FieldArrayItem } from './fieldArray/types'
 
 // Validation
 export type { FieldValidatorEntry, FieldValidateMode, FormResolver } from './validation/types'

@@ -31,10 +31,6 @@ export function createFieldApi<TValues>(
     reset:        (opts?) => dispatch({ type: A.RESET_FIELD, path, options: opts }),
     pendingStart: (opts?) => dispatch({ type: A.PENDING_START, path, options: opts }),
     pendingEnd:   (opts?) => dispatch({ type: A.PENDING_END, path, options: opts }),
-    append:       (v, opts?) => dispatch({ type: A.ARRAY_APPEND, path, value: v, options: opts }),
-    remove:       (i, opts?) => dispatch({ type: A.ARRAY_REMOVE, path, index: i, options: opts }),
-    insert:       (i, v, opts?) => dispatch({ type: A.ARRAY_INSERT, path, index: i, value: v, options: opts }),
-    move:         (f, t, opts?) => dispatch({ type: A.ARRAY_MOVE, path, from: f, to: t, options: opts }),
 
     // Selector pre-costruiti
     select: {

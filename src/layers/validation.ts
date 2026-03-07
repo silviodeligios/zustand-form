@@ -76,6 +76,11 @@ export function validationEnhancer<TValues>(registry: FieldRegistry): Enhancer<T
         const base = draft.errors ?? prev.errors
         return { ...draft, errors: reindexPathKeyedRecord(base, ctx.path, { type: 'move', from: ctx.from, to: ctx.to }) }
       }
+      case A.ARRAY_SWAP: {
+        if (!ctx.path || ctx.from == null || ctx.to == null) return draft
+        const base = draft.errors ?? prev.errors
+        return { ...draft, errors: reindexPathKeyedRecord(base, ctx.path, { type: 'swap', from: ctx.from, to: ctx.to }) }
+      }
       case A.SUBMIT: {
         let errors = draft.errors ?? prev.errors
         const values = draft.values ?? prev.values

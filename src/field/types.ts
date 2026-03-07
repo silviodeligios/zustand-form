@@ -34,9 +34,5 @@ export interface FieldApi<TValues> {
   reset(options?: DispatchOptions): void
   pendingStart(options?: DispatchOptions): void
   pendingEnd(options?: DispatchOptions): void
-  append(value: unknown, options?: DispatchOptions): void
-  remove(index: number, options?: DispatchOptions): void
-  insert(index: number, value: unknown, options?: DispatchOptions): void
-  move(from: number, to: number, options?: DispatchOptions): void
   select: FieldSelectors<TValues>
 }

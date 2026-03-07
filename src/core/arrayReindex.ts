@@ -2,6 +2,7 @@ export type ArrayReindexOp =
   | { type: 'remove'; index: number }
   | { type: 'insert'; index: number }
   | { type: 'move'; from: number; to: number }
+  | { type: 'swap'; from: number; to: number }
 
 export function reindexPathKeyedRecord<T>(
   record: Record<string, T>,
@@ -33,7 +34,7 @@ export function reindexPathKeyedRecord<T>(
       newIndex = index > op.index ? index - 1 : index
     } else if (op.type === 'insert') {
       newIndex = index >= op.index ? index + 1 : index
-    } else {
+    } else if (op.type === 'move') {
       const { from, to } = op
       if (from === to) { result[key] = record[key]; continue }
       if (index === from) {
@@ -42,6 +43,17 @@ export function reindexPathKeyedRecord<T>(
         newIndex = (index > from && index <= to) ? index - 1 : index
       } else {
         newIndex = (index >= to && index < from) ? index + 1 : index
+      }
+    } else {
+      // swap
+      const { from, to } = op
+      if (from === to) { result[key] = record[key]; continue }
+      if (index === from) {
+        newIndex = to
+      } else if (index === to) {
+        newIndex = from
+      } else {
+        newIndex = index
       }
     }
 

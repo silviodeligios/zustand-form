@@ -31,6 +31,11 @@ export function pendingEnhancer<TValues>(): Enhancer<TValues> {
         const base = draft.pendingFields ?? prev.pendingFields
         return { ...draft, pendingFields: reindexPathKeyedRecord(base, ctx.path, { type: 'move', from: ctx.from, to: ctx.to }) }
       }
+      case A.ARRAY_SWAP: {
+        if (!ctx.path || ctx.from == null || ctx.to == null) return draft
+        const base = draft.pendingFields ?? prev.pendingFields
+        return { ...draft, pendingFields: reindexPathKeyedRecord(base, ctx.path, { type: 'swap', from: ctx.from, to: ctx.to }) }
+      }
       case A.RESET_FORM:
         return { ...draft, pendingFields: {} }
       case A.RESET_FIELD: {
