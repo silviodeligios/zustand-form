@@ -1,16 +1,22 @@
 import { useMemo, useCallback, useRef, useState } from 'react'
 import type { FormHook, UseZFieldArrayReturn } from './types'
 import type { DispatchOptions } from '../core/types'
+import { useFormContext } from './context'
 
 let keyCounter = 0
 function generateKey(): string {
   return '_k' + keyCounter++
 }
 
+export function useZFieldArray<TValues>(form: FormHook<TValues>, path: string): UseZFieldArrayReturn
+export function useZFieldArray<TValues>(path: string): UseZFieldArrayReturn
 export function useZFieldArray<TValues>(
-  form: FormHook<TValues>,
-  path: string,
+  formOrPath: FormHook<TValues> | string,
+  maybePath?: string,
 ): UseZFieldArrayReturn {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const form: FormHook<TValues> = typeof formOrPath === 'string' ? useFormContext<TValues>() : formOrPath
+  const path: string = typeof formOrPath === 'string' ? formOrPath : maybePath!
   const length = form(form.fieldArray.select.length(path))
   const [version, setVersion] = useState(0)
   const keysRef = useRef<string[]>([])
@@ -31,28 +37,24 @@ export function useZFieldArray<TValues>(
   const append = useCallback((value: unknown, opts?: DispatchOptions) => {
     keysRef.current = [...keysRef.current, generateKey()]
     fa.append(path, value, opts)
-    bump()
-  }, [fa, path, bump])
+  }, [fa, path])
 
   const prepend = useCallback((value: unknown, opts?: DispatchOptions) => {
     keysRef.current = [generateKey(), ...keysRef.current]
     fa.prepend(path, value, opts)
-    bump()
-  }, [fa, path, bump])
+  }, [fa, path])
 
   const remove = useCallback((index: number, opts?: DispatchOptions) => {
     keysRef.current = keysRef.current.filter((_, i) => i !== index)
     fa.remove(path, index, opts)
-    bump()
-  }, [fa, path, bump])
+  }, [fa, path])
 
   const insert = useCallback((index: number, value: unknown, opts?: DispatchOptions) => {
     const next = [...keysRef.current]
     next.splice(index, 0, generateKey())
     keysRef.current = next
     fa.insert(path, index, value, opts)
-    bump()
-  }, [fa, path, bump])
+  }, [fa, path])
 
   const move = useCallback((from: number, to: number, opts?: DispatchOptions) => {
     const next = [...keysRef.current]

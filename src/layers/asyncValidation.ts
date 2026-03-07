@@ -17,8 +17,13 @@ export function asyncValidationEnhancer<TValues>(
         if ((entry.asyncValidateMode ?? 'onChange') !== 'onChange') return draft
         const dirty = (draft.dirtyFields ?? prev.dirtyFields)[ctx.path]
         if (!dirty) return draft
-        // Skip only if a sync/schema validator set an error in this pipeline run
-        if (draft.errors?.[ctx.path]) return draft
+        // If a sync/schema validator set an error, cancel in-flight async and clear pending
+        if (draft.errors?.[ctx.path]) {
+          registry.nextVersion(ctx.path)
+          registry.clearTimer(ctx.path)
+          const { [ctx.path]: _, ...rest } = draft.pendingFields ?? prev.pendingFields
+          return { ...draft, pendingFields: rest }
+        }
         const value = getIn((draft.values ?? prev.values) as TValues, ctx.path)
         const path = ctx.path
         // Clear any stale async error and set pending
@@ -34,7 +39,12 @@ export function asyncValidationEnhancer<TValues>(
         if (!entry?.asyncValidate || entry.asyncValidateMode !== 'onBlur') return draft
         const dirty = (draft.dirtyFields ?? prev.dirtyFields)[ctx.path]
         if (!dirty) return draft
-        if (draft.errors?.[ctx.path]) return draft
+        if (draft.errors?.[ctx.path]) {
+          registry.nextVersion(ctx.path)
+          registry.clearTimer(ctx.path)
+          const { [ctx.path]: _, ...rest } = draft.pendingFields ?? prev.pendingFields
+          return { ...draft, pendingFields: rest }
+        }
         const value = getIn((draft.values ?? prev.values) as TValues, ctx.path)
         const path = ctx.path
         const errors = draft.errors ?? prev.errors

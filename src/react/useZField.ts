@@ -1,12 +1,18 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react'
 import type { FormHook, UseZFieldOptions, UseZFieldReturn } from './types'
 import { shallow } from 'zustand/shallow'
+import { useFormContext } from './context'
 
+export function useZField<TValues>(form: FormHook<TValues>, path: string, options?: UseZFieldOptions): UseZFieldReturn
+export function useZField<TValues>(path: string, options?: UseZFieldOptions): UseZFieldReturn
 export function useZField<TValues>(
-  form: FormHook<TValues>,
-  path: string,
-  options?: UseZFieldOptions,
+  formOrPath: FormHook<TValues> | string,
+  pathOrOptions?: string | UseZFieldOptions,
+  maybeOptions?: UseZFieldOptions,
 ): UseZFieldReturn {
+  const form: FormHook<TValues> = typeof formOrPath === 'string' ? useFormContext<TValues>() : formOrPath
+  const path: string = typeof formOrPath === 'string' ? formOrPath : pathOrOptions as string
+  const options: UseZFieldOptions | undefined = typeof formOrPath === 'string' ? pathOrOptions as UseZFieldOptions | undefined : maybeOptions
   const validate = options?.validate
   const validateMode = options?.validateMode
   const asyncValidate = options?.asyncValidate

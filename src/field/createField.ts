@@ -1,32 +1,15 @@
 import type { StoreApi } from 'zustand/vanilla'
 import type { FormState, Dispatch } from '../core/types'
-import type { FieldNamespace, FieldState } from './types'
+import type { FieldNamespace } from './types'
 import * as A from '../core/actions'
 import { getIn } from '../core/utils'
-
-type Selector<R> = (s: FormState<unknown>) => R
-
-function cached<R>(map: Map<string, Selector<R>>, path: string, factory: () => Selector<R>): Selector<R> {
-  let sel = map.get(path)
-  if (!sel) { sel = factory(); map.set(path, sel) }
-  return sel
-}
+import { createFieldSelectors } from './selectors'
 
 export function createFieldNamespace<TValues>(
   store: StoreApi<FormState<TValues>>,
   dispatch: Dispatch,
 ): FieldNamespace<TValues> {
   const s = () => store.getState()
-
-  const cache = {
-    value: new Map<string, Selector<unknown>>(),
-    error: new Map<string, Selector<string | undefined>>(),
-    dirty: new Map<string, Selector<boolean>>(),
-    touched: new Map<string, Selector<boolean>>(),
-    pending: new Map<string, Selector<boolean>>(),
-    focused: new Map<string, Selector<boolean>>(),
-    fieldState: new Map<string, Selector<FieldState>>(),
-  }
 
   return {
     getValue:  (path) => getIn(s().values, path),
@@ -47,21 +30,6 @@ export function createFieldNamespace<TValues>(
     pendingStart: (path, opts?) => dispatch({ type: A.PENDING_START, path, options: opts }),
     pendingEnd:   (path, opts?) => dispatch({ type: A.PENDING_END, path, options: opts }),
 
-    select: {
-      value:   (path) => cached(cache.value, path, () => (s) => getIn(s.values, path)) as (s: FormState<TValues>) => unknown,
-      error:   (path) => cached(cache.error, path, () => (s) => s.errors[path]) as (s: FormState<TValues>) => string | undefined,
-      dirty:   (path) => cached(cache.dirty, path, () => (s) => s.dirtyFields[path] ?? false) as (s: FormState<TValues>) => boolean,
-      touched: (path) => cached(cache.touched, path, () => (s) => s.touchedFields[path] ?? false) as (s: FormState<TValues>) => boolean,
-      pending: (path) => cached(cache.pending, path, () => (s) => s.pendingFields[path] ?? false) as (s: FormState<TValues>) => boolean,
-      focused: (path) => cached(cache.focused, path, () => (s) => s.focusedField === path) as (s: FormState<TValues>) => boolean,
-      fieldState: (path) => cached(cache.fieldState, path, () => (s) => ({
-        value:   getIn(s.values, path),
-        dirty:   s.dirtyFields[path] ?? false,
-        touched: s.touchedFields[path] ?? false,
-        error:   s.errors[path],
-        pending: s.pendingFields[path] ?? false,
-        focused: s.focusedField === path,
-      })) as (s: FormState<TValues>) => FieldState,
-    },
+    select: createFieldSelectors<TValues>(),
   }
 }
