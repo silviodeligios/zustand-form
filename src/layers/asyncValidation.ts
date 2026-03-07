@@ -14,19 +14,18 @@ export function asyncValidationEnhancer<TValues>(
         if (!ctx.path) return draft
         const entry = registry.get(ctx.path)
         if (!entry?.asyncValidate) return draft
-        if ((entry.asyncValidateMode ?? 'onChange') !== 'onChange') return draft
-        const dirty = (draft.dirtyFields ?? prev.dirtyFields)[ctx.path]
-        if (!dirty) return draft
-        // If a sync/schema validator set an error, cancel in-flight async and clear pending
+        // Cancel in-flight async if sync error present (before dirty/mode checks)
         if (draft.errors?.[ctx.path]) {
           registry.nextVersion(ctx.path)
           registry.clearTimer(ctx.path)
           const { [ctx.path]: _, ...rest } = draft.pendingFields ?? prev.pendingFields
           return { ...draft, pendingFields: rest }
         }
+        if ((entry.asyncValidateMode ?? 'onChange') !== 'onChange') return draft
+        const dirty = (draft.dirtyFields ?? prev.dirtyFields)[ctx.path]
+        if (!dirty) return draft
         const value = getIn((draft.values ?? prev.values) as TValues, ctx.path)
         const path = ctx.path
-        // Clear any stale async error and set pending
         const errors = draft.errors ?? prev.errors
         const { [path]: _, ...clearedErrors } = errors
         const pending = { ...(draft.pendingFields ?? prev.pendingFields), [path]: true }
@@ -36,15 +35,17 @@ export function asyncValidationEnhancer<TValues>(
       case A.BLUR: {
         if (!ctx.path) return draft
         const entry = registry.get(ctx.path)
-        if (!entry?.asyncValidate || entry.asyncValidateMode !== 'onBlur') return draft
-        const dirty = (draft.dirtyFields ?? prev.dirtyFields)[ctx.path]
-        if (!dirty) return draft
+        if (!entry?.asyncValidate) return draft
+        // Cancel in-flight async if sync error present (before dirty/mode checks)
         if (draft.errors?.[ctx.path]) {
           registry.nextVersion(ctx.path)
           registry.clearTimer(ctx.path)
           const { [ctx.path]: _, ...rest } = draft.pendingFields ?? prev.pendingFields
           return { ...draft, pendingFields: rest }
         }
+        if (entry.asyncValidateMode !== 'onBlur') return draft
+        const dirty = (draft.dirtyFields ?? prev.dirtyFields)[ctx.path]
+        if (!dirty) return draft
         const value = getIn((draft.values ?? prev.values) as TValues, ctx.path)
         const path = ctx.path
         const errors = draft.errors ?? prev.errors
@@ -89,7 +90,7 @@ function runAsync(
     registry.nextVersion(path) // invalidate any previous debounce
     registry.setTimer(path, setTimeout(() => {
       const session = registry.getSession(sessionId)
-      if (!session) return // cleaned up by reindex (removed from array)
+      if (!session) return
       const currentPath = session.path
       const version = registry.nextVersion(currentPath)
       session.version = version

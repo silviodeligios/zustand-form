@@ -38,6 +38,8 @@ export function validationEnhancer<TValues>(registry: FieldRegistry): Enhancer<T
       }
       case A.ASYNC_RESOLVE: {
         if (!ctx.path) return draft
+        const pending = draft.pendingFields ?? prev.pendingFields
+        if (!pending[ctx.path]) return draft
         const base = draft.errors ?? prev.errors
         if (ctx.value) return { ...draft, errors: { ...base, [ctx.path]: ctx.value as string } }
         const { [ctx.path]: _, ...rest } = base
