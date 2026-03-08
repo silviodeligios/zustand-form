@@ -26,14 +26,6 @@
         "types": "./dist/react/index.d.cts",
         "default": "./dist/react/index.cjs"
       }
-    },
-    "./src": {
-      "import": "./src/index.ts",
-      "types": "./src/index.ts"
-    },
-    "./src/react": {
-      "import": "./src/react/index.ts",
-      "types": "./src/react/index.ts"
     }
   },
   "files": [
@@ -41,6 +33,7 @@
   ],
   "scripts": {
     "build": "tsup",
+    "prepare": "tsup",
     "dev": "tsup --watch",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
@@ -58,6 +51,11 @@
     "hooks"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/silviodeligios/zustand-form.git"
+  },
+  "author": "Silvio Deligios",
   "peerDependencies": {
     "react": ">=18.0.0",
     "zod": ">=4.0.0",
