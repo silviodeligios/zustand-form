@@ -2,7 +2,7 @@ import type { StoreApi } from "zustand/vanilla";
 import type { FormState, Dispatch } from "../core/types";
 import type { TreeNamespace } from "./types";
 import * as A from "../core/actions";
-import { treeMatcher } from "../core/utils";
+import { treeMatcher } from "../utils/tree";
 import { createTreeSelectors } from "./selectors";
 
 export function createTreeNamespace<TValues, TError = string>(

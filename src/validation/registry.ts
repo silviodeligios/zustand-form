@@ -1,10 +1,10 @@
 import type { Dispatch } from "../core/types";
-import type { ArrayReindexOp } from "../core/arrayReindex";
+import type { ArrayReindexOp } from "../utils/arrayReindex";
 import {
   reindexMap,
   computeNewIndex,
   parsePathIndex,
-} from "../core/arrayReindex";
+} from "../utils/arrayReindex";
 import * as A from "../core/actions";
 import type { FieldValidatorEntry } from "./types";
 

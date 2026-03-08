@@ -3,7 +3,7 @@ import type { FormState, Dispatch } from "../core/types";
 import type { FieldNamespace } from "./types";
 import type { Path, PathValue } from "../types/paths";
 import * as A from "../core/actions";
-import { getIn } from "../core/utils";
+import { getIn } from "../utils/paths";
 import { createFieldSelectors } from "./selectors";
 
 export function createFieldNamespace<TValues, TError = string>(

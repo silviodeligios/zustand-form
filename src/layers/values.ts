@@ -1,6 +1,6 @@
 import type { Enhancer } from "../core/types";
 import * as A from "../core/actions";
-import { setIn, getIn, getInArray } from "../core/utils";
+import { setIn, getIn, getInArray } from "../utils/paths";
 
 export function valuesEnhancer<TValues, TError = string>(
   defaultValues: TValues,

@@ -1,7 +1,9 @@
 import type { Enhancer, FormState } from "../core/types";
 import * as A from "../core/actions";
-import { getIn, isEqual, treeMatcher } from "../core/utils";
-import { reindexPathKeyedRecord } from "../core/arrayReindex";
+import { getIn } from "../utils/paths";
+import { isEqual } from "../utils/compare";
+import { treeMatcher } from "../utils/tree";
+import { reindexPathKeyedRecord } from "../utils/arrayReindex";
 
 function arrayDirtyCheck<TValues, TError>(
   dirtyFields: Record<string, boolean>,

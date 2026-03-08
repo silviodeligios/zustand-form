@@ -1,8 +1,9 @@
 import type { Enhancer, Dispatch } from "../../core/types";
 import type { FieldRegistry } from "../../validation/registry";
 import * as A from "../../core/actions";
-import { getIn, treeMatcher } from "../../core/utils";
-import { reindexPathKeyedRecord } from "../../core/arrayReindex";
+import { getIn } from "../../utils/paths";
+import { treeMatcher } from "../../utils/tree";
+import { reindexPathKeyedRecord } from "../../utils/arrayReindex";
 import { triggerArrayAsync, runAsync } from "./utils";
 
 export function asyncValidationEnhancer<TValues, TError = string>(

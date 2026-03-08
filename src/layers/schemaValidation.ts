@@ -1,7 +1,7 @@
 import type { ActionContext, Enhancer, FormState } from "../core/types";
 import type { FormResolver, FieldValidateMode } from "../validation/types";
 import * as A from "../core/actions";
-import { treeMatcher } from "../core/utils";
+import { treeMatcher } from "../utils/tree";
 
 function schemaValidateArrayPath<TValues, TError>(
   ctx: ActionContext,

@@ -1,4 +1,5 @@
 import type { FormState } from "../core/types";
+import { cached } from "../utils/cache";
 
 export function createTreeSelectors<TValues, TError = string>(
   getMatcher: (path?: string) => (key: string) => boolean,
@@ -8,19 +9,6 @@ export function createTreeSelectors<TValues, TError = string>(
   ) => Record<string, TError>,
 ) {
   type Sel<R> = (s: FormState<TValues, TError>) => R;
-
-  function cached<R>(
-    map: Map<string, Sel<R>>,
-    key: string,
-    factory: () => Sel<R>,
-  ): Sel<R> {
-    let sel = map.get(key);
-    if (!sel) {
-      sel = factory();
-      map.set(key, sel);
-    }
-    return sel;
-  }
 
   const cache = {
     dirty: new Map<string, Sel<boolean>>(),

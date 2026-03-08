@@ -2,26 +2,14 @@ import type { FormState, Dispatch } from "../core/types";
 import type { FieldState, InputProps, FieldNamespace } from "./types";
 import type { Path, PathValue } from "../types/paths";
 import * as A from "../core/actions";
-import { getIn } from "../core/utils";
+import { getIn } from "../utils/paths";
+import { cached } from "../utils/cache";
 
 export function createFieldSelectors<
   TValues,
   TError = string,
 >(dispatch: Dispatch): FieldNamespace<TValues, TError>["select"] {
   type Sel<R> = (s: FormState<TValues, TError>) => R;
-
-  function cached<R>(
-    map: Map<string, Sel<R>>,
-    path: string,
-    factory: () => Sel<R>,
-  ): Sel<R> {
-    let sel = map.get(path);
-    if (!sel) {
-      sel = factory();
-      map.set(path, sel);
-    }
-    return sel;
-  }
 
   const cache = {
     value: new Map<string, Sel<unknown>>(),

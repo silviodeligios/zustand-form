@@ -14,7 +14,7 @@ export type {
   Form,
 } from "./core/types";
 export * as Actions from "./core/actions";
-export { getIn } from "./core/utils";
+export { getIn } from "./utils/paths";
 export {
   valuesEnhancer,
   touchedEnhancer,
@@ -27,7 +27,7 @@ export {
 export {
   reindexPathKeyedRecord,
   type ArrayReindexOp,
-} from "./core/arrayReindex";
+} from "./utils/arrayReindex";
 
 // Field
 export type { FieldNamespace, FieldState, InputProps } from "./field/types";

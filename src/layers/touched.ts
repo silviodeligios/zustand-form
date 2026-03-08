@@ -1,7 +1,7 @@
 import type { Enhancer } from "../core/types";
 import * as A from "../core/actions";
-import { treeMatcher } from "../core/utils";
-import { reindexPathKeyedRecord } from "../core/arrayReindex";
+import { treeMatcher } from "../utils/tree";
+import { reindexPathKeyedRecord } from "../utils/arrayReindex";
 
 export function touchedEnhancer<TValues, TError = string>(): Enhancer<
   TValues,

@@ -13,7 +13,7 @@ import { createFieldArrayNamespace } from "../fieldArray/createFieldArray";
 import { createTreeNamespace } from "../tree/createTree";
 import type { FormResolver, FieldValidateMode } from "../validation/types";
 import { createFieldRegistry } from "../validation/registry";
-import { isThenable } from "./utils";
+import { isThenable } from "../utils/compare";
 import { valuesEnhancer } from "../layers/values";
 import { touchedEnhancer } from "../layers/touched";
 import { dirtyEnhancer } from "../layers/dirty";

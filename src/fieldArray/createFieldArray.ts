@@ -2,26 +2,14 @@ import type { StoreApi } from "zustand/vanilla";
 import type { FormState, Dispatch } from "../core/types";
 import type { FieldArrayNamespace } from "./types";
 import * as A from "../core/actions";
-import { getInArray } from "../core/utils";
+import { getInArray } from "../utils/paths";
+import { cached } from "../utils/cache";
 
 export function createFieldArrayNamespace<TValues, TError = string>(
   store: StoreApi<FormState<TValues, TError>>,
   dispatch: Dispatch,
 ): FieldArrayNamespace<TValues, TError> {
   type Sel<R> = (s: FormState<TValues, TError>) => R;
-
-  function cached<R>(
-    map: Map<string, Sel<R>>,
-    path: string,
-    factory: () => Sel<R>,
-  ): Sel<R> {
-    let sel = map.get(path);
-    if (!sel) {
-      sel = factory();
-      map.set(path, sel);
-    }
-    return sel;
-  }
 
   const s = () => store.getState();
 

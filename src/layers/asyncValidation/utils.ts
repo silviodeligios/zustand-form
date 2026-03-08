@@ -2,7 +2,7 @@ import type { Dispatch, FormState } from "../../core/types";
 import type { FieldRegistry } from "../../validation/registry";
 import type { FieldValidatorEntry } from "../../validation/types";
 import * as A from "../../core/actions";
-import { getIn } from "../../core/utils";
+import { getIn } from "../../utils/paths";
 
 export function triggerArrayAsync<TValues, TError>(
   pendingBase: Record<string, boolean>,
