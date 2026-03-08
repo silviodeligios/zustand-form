@@ -55,6 +55,11 @@ export function valuesEnhancer<TValues, TError = string>(
         arr[ctx.to] = tmp;
         return { ...draft, values: setIn(base, ctx.path, arr) };
       }
+      case A.ARRAY_REPLACE: {
+        if (!ctx.path) return draft;
+        const base = draft.values ?? prev.values;
+        return { ...draft, values: setIn(base, ctx.path, ctx.value) };
+      }
       case A.RESET_FORM: {
         const next = ctx.value
           ? { ...defaultValues, ...(ctx.value as Partial<TValues>) }

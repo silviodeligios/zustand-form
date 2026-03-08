@@ -1,8 +1,24 @@
-import type { Enhancer } from "../core/types";
+import type { Enhancer, FormState } from "../core/types";
 import type { FieldRegistry } from "../validation/registry";
 import * as A from "../core/actions";
 import { getIn, treeMatcher } from "../core/utils";
 import { reindexPathKeyedRecord } from "../core/arrayReindex";
+
+function validateArrayPath<TValues, TError>(
+  errors: Record<string, TError | undefined>,
+  draft: Partial<FormState<TValues, TError>>,
+  prev: FormState<TValues, TError>,
+  path: string,
+  registry: FieldRegistry<TError>,
+): Partial<FormState<TValues, TError>> {
+  const entry = registry.get(path);
+  if (entry?.validate && (entry.validateMode ?? "onChange") === "onChange") {
+    const values = draft.values ?? prev.values;
+    const error = entry.validate(getIn(values, path));
+    return { ...draft, errors: { ...errors, [path]: error } };
+  }
+  return { ...draft, errors };
+}
 
 export function validationEnhancer<TValues, TError = string>(
   registry: FieldRegistry<TError>,
@@ -76,46 +92,64 @@ export function validationEnhancer<TValues, TError = string>(
         const base = draft.errors ?? prev.errors;
         return { ...draft, errors: { ...base, [ctx.path]: error } };
       }
-      case A.ARRAY_APPEND:
-      case A.ARRAY_REMOVE:
-      case A.ARRAY_INSERT:
-      case A.ARRAY_MOVE:
+      case A.ARRAY_APPEND: {
+        if (!ctx.path) return draft;
+        return validateArrayPath(
+          draft.errors ?? prev.errors,
+          draft,
+          prev,
+          ctx.path,
+          registry,
+        );
+      }
+      case A.ARRAY_REMOVE: {
+        if (!ctx.path) return draft;
+        const errors = reindexPathKeyedRecord(
+          draft.errors ?? prev.errors,
+          ctx.path,
+          { type: "remove", index: ctx.index! },
+        );
+        return validateArrayPath(errors, draft, prev, ctx.path, registry);
+      }
+      case A.ARRAY_INSERT: {
+        if (!ctx.path) return draft;
+        const errors = reindexPathKeyedRecord(
+          draft.errors ?? prev.errors,
+          ctx.path,
+          { type: "insert", index: ctx.index! },
+        );
+        return validateArrayPath(errors, draft, prev, ctx.path, registry);
+      }
+      case A.ARRAY_MOVE: {
+        if (!ctx.path) return draft;
+        const errors = reindexPathKeyedRecord(
+          draft.errors ?? prev.errors,
+          ctx.path,
+          { type: "move", from: ctx.from!, to: ctx.to! },
+        );
+        return validateArrayPath(errors, draft, prev, ctx.path, registry);
+      }
       case A.ARRAY_SWAP: {
         if (!ctx.path) return draft;
+        const errors = reindexPathKeyedRecord(
+          draft.errors ?? prev.errors,
+          ctx.path,
+          { type: "swap", from: ctx.from!, to: ctx.to! },
+        );
+        return validateArrayPath(errors, draft, prev, ctx.path, registry);
+      }
+      case A.ARRAY_REPLACE: {
+        if (!ctx.path) return draft;
+        const prefix = ctx.path + ".";
         let errors = draft.errors ?? prev.errors;
-        if (ctx.type === A.ARRAY_REMOVE)
-          errors = reindexPathKeyedRecord(errors, ctx.path, {
-            type: "remove",
-            index: ctx.index!,
-          });
-        else if (ctx.type === A.ARRAY_INSERT)
-          errors = reindexPathKeyedRecord(errors, ctx.path, {
-            type: "insert",
-            index: ctx.index!,
-          });
-        else if (ctx.type === A.ARRAY_MOVE)
-          errors = reindexPathKeyedRecord(errors, ctx.path, {
-            type: "move",
-            from: ctx.from!,
-            to: ctx.to!,
-          });
-        else if (ctx.type === A.ARRAY_SWAP)
-          errors = reindexPathKeyedRecord(errors, ctx.path, {
-            type: "swap",
-            from: ctx.from!,
-            to: ctx.to!,
-          });
-        // Validate array path itself
-        const entry = registry.get(ctx.path);
-        if (
-          entry?.validate &&
-          (entry.validateMode ?? "onChange") === "onChange"
-        ) {
-          const values = draft.values ?? prev.values;
-          const error = entry.validate(getIn(values, ctx.path));
-          errors = { ...errors, [ctx.path]: error };
+        if (Object.keys(errors).some((k) => k.startsWith(prefix))) {
+          const next: Record<string, TError | undefined> = {};
+          for (const k of Object.keys(errors)) {
+            if (!k.startsWith(prefix)) next[k] = errors[k];
+          }
+          errors = next;
         }
-        return { ...draft, errors };
+        return validateArrayPath(errors, draft, prev, ctx.path, registry);
       }
       case A.SUBMIT: {
         let errors = draft.errors ?? prev.errors;

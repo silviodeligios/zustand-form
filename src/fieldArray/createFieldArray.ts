@@ -62,6 +62,8 @@ export function createFieldArrayNamespace<TValues, TError = string>(
       }),
     move: (path, f, t, opts?) =>
       dispatch({ type: A.ARRAY_MOVE, path, from: f, to: t, options: opts }),
+    replace: (path: string, v: unknown, opts?: { disableLayers?: string[] }) =>
+      dispatch({ type: A.ARRAY_REPLACE, path, value: v, options: opts }),
     swap: (path, a, b, opts?) =>
       dispatch({ type: A.ARRAY_SWAP, path, from: a, to: b, options: opts }),
 

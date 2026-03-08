@@ -49,6 +49,7 @@ export type ActionType =
   | typeof A.ARRAY_INSERT
   | typeof A.ARRAY_MOVE
   | typeof A.ARRAY_SWAP
+  | typeof A.ARRAY_REPLACE
   | typeof A.RESET_FORM
   | typeof A.SUBMIT
   | typeof A.SUBMIT_SUCCESS

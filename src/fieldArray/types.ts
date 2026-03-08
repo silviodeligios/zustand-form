@@ -54,6 +54,12 @@ export interface FieldArrayNamespace<TValues, TError = string> {
     to: number,
     options?: DispatchOptions,
   ): void;
+  replace<P extends Path<TValues>>(
+    path: P,
+    value: PathValue<TValues, P>,
+    options?: DispatchOptions,
+  ): void;
+  replace(path: string, value: unknown, options?: DispatchOptions): void;
   swap(
     path: FieldPath<TValues>,
     indexA: number,
