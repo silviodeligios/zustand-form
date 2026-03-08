@@ -2,6 +2,7 @@ import { useRef, useCallback } from "react";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { createForm } from "../core/createForm";
 import type { FormState, Form, Enhancer, NamedEnhancer } from "../core/types";
+import type { StateCreator } from "zustand/vanilla";
 import type { FormResolver, FieldValidateMode } from "../validation/types";
 import type { FormHook } from "./types";
 
@@ -12,8 +13,9 @@ export interface UseZFormConfig<TValues> {
   enhancers?: (
     defaults: NamedEnhancer<TValues>[],
   ) => (NamedEnhancer<TValues> | Enhancer<TValues>)[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  middleware?: (initializer: () => FormState<TValues>) => any;
+  middleware?: (
+    initializer: StateCreator<FormState<TValues>>,
+  ) => StateCreator<FormState<TValues>>;
 }
 
 export function useZForm<TValues>(

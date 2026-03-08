@@ -1,4 +1,4 @@
-import { createStore } from "zustand/vanilla";
+import { createStore, type StateCreator } from "zustand/vanilla";
 import type {
   FormState,
   Form,
@@ -31,8 +31,11 @@ export interface FormConfig<TValues> {
         defaults: NamedEnhancer<TValues>[],
       ) => (NamedEnhancer<TValues> | Enhancer<TValues>)[])
     | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  middleware?: ((initializer: () => FormState<TValues>) => any) | undefined;
+  middleware?:
+    | ((
+        initializer: StateCreator<FormState<TValues>>,
+      ) => StateCreator<FormState<TValues>>)
+    | undefined;
 }
 
 export function createForm<TValues>(
@@ -52,8 +55,7 @@ export function createForm<TValues>(
   };
   const defaultValues = initialState.values;
 
-  const initializer = () => initialState;
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- middleware returns opaque zustand enhancer
+  const initializer: StateCreator<FormState<TValues>> = () => initialState;
   const store = createStore<FormState<TValues>>()(
     config.middleware ? config.middleware(initializer) : initializer,
   );

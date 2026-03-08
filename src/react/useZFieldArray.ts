@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useRef, useState } from "react";
 import type { FormHook, UseZFieldArrayReturn } from "./types";
 import type { DispatchOptions } from "../core/types";
-import { useFormContext } from "./context";
+import { useOptionalFormContext, missingProvider } from "./context";
 
 let keyCounter = 0;
 function generateKey(): string {
@@ -17,9 +17,11 @@ export function useZFieldArray<TValues>(
   formOrPath: FormHook<TValues> | string,
   maybePath?: string,
 ): UseZFieldArrayReturn {
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- conditional is stable per component instance
+  const contextForm = useOptionalFormContext<TValues>();
   const form: FormHook<TValues> =
-    typeof formOrPath === "string" ? useFormContext<TValues>() : formOrPath;
+    typeof formOrPath === "string"
+      ? (contextForm ?? missingProvider())
+      : formOrPath;
   const path: string = typeof formOrPath === "string" ? formOrPath : maybePath!;
   const length = form(form.fieldArray.select.length(path));
   const [version, setVersion] = useState(0);

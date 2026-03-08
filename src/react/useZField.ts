@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useMemo } from "react";
 import type { FormHook, UseZFieldOptions, UseZFieldReturn } from "./types";
 import { shallow } from "zustand/shallow";
-import { useFormContext } from "./context";
+import { useOptionalFormContext, missingProvider } from "./context";
 
 export function useZField<TValues>(
   form: FormHook<TValues>,
@@ -17,9 +17,11 @@ export function useZField<TValues>(
   pathOrOptions?: string | UseZFieldOptions,
   maybeOptions?: UseZFieldOptions,
 ): UseZFieldReturn {
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- conditional is stable per component instance (form prop or context)
+  const contextForm = useOptionalFormContext<TValues>();
   const form: FormHook<TValues> =
-    typeof formOrPath === "string" ? useFormContext<TValues>() : formOrPath;
+    typeof formOrPath === "string"
+      ? (contextForm ?? missingProvider())
+      : formOrPath;
   const path: string =
     typeof formOrPath === "string" ? formOrPath : (pathOrOptions as string);
   const options: UseZFieldOptions | undefined =
