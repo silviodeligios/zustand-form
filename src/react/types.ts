@@ -4,24 +4,27 @@ import type { FieldState } from "../field/types";
 import type { FieldArrayItem } from "../fieldArray/types";
 
 /** Form callable as React selector hook + vanilla Form methods */
-export interface FormHook<TValues> extends Form<TValues> {
+export interface FormHook<TValues, TError = string> extends Form<
+  TValues,
+  TError
+> {
   <U>(
-    selector: (state: FormState<TValues>) => U,
+    selector: (state: FormState<TValues, TError>) => U,
     equalityFn?: (a: U, b: U) => boolean,
   ): U;
 }
 
 /** Options for useZField — per-field validation + registration */
-export interface UseZFieldOptions {
-  validate?: FieldValidatorEntry["validate"];
-  validateMode?: FieldValidatorEntry["validateMode"];
-  asyncValidate?: FieldValidatorEntry["asyncValidate"];
-  asyncValidateMode?: FieldValidatorEntry["asyncValidateMode"];
-  debounce?: FieldValidatorEntry["debounce"];
+export interface UseZFieldOptions<TError = string> {
+  validate?: FieldValidatorEntry<TError>["validate"];
+  validateMode?: FieldValidatorEntry<TError>["validateMode"];
+  asyncValidate?: FieldValidatorEntry<TError>["asyncValidate"];
+  asyncValidateMode?: FieldValidatorEntry<TError>["asyncValidateMode"];
+  debounce?: FieldValidatorEntry<TError>["debounce"];
 }
 
 /** Return type of useZField */
-export interface UseZFieldReturn {
+export interface UseZFieldReturn<TError = string> {
   field: {
     value: unknown;
     onChange(value: unknown): void;
@@ -29,7 +32,7 @@ export interface UseZFieldReturn {
     onFocus(): void;
     ref: (el: HTMLElement | null) => void;
   };
-  fieldState: FieldState;
+  fieldState: FieldState<TError>;
 }
 
 /** Return type of useZFieldArray */

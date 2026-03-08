@@ -22,26 +22,26 @@ import { schemaValidationEnhancer } from "../layers/schemaValidation";
 import { asyncValidationEnhancer } from "../layers/asyncValidation";
 import { submitEnhancer } from "../layers/submit";
 
-export interface FormConfig<TValues> {
-  initialState: Partial<FormState<TValues>>;
-  resolver?: FormResolver<TValues> | undefined;
+export interface FormConfig<TValues, TError = string> {
+  initialState: Partial<FormState<TValues, TError>>;
+  resolver?: FormResolver<TValues, TError> | undefined;
   resolverMode?: FieldValidateMode | undefined;
   enhancers?:
     | ((
-        defaults: NamedEnhancer<TValues>[],
-      ) => (NamedEnhancer<TValues> | Enhancer<TValues>)[])
+        defaults: NamedEnhancer<TValues, TError>[],
+      ) => (NamedEnhancer<TValues, TError> | Enhancer<TValues, TError>)[])
     | undefined;
   middleware?:
     | ((
-        initializer: StateCreator<FormState<TValues>>,
-      ) => StateCreator<FormState<TValues>>)
+        initializer: StateCreator<FormState<TValues, TError>>,
+      ) => StateCreator<FormState<TValues, TError>>)
     | undefined;
 }
 
-export function createForm<TValues>(
-  config: FormConfig<TValues>,
-): Form<TValues> {
-  const initialState: FormState<TValues> = {
+export function createForm<TValues, TError = string>(
+  config: FormConfig<TValues, TError>,
+): Form<TValues, TError> {
+  const initialState: FormState<TValues, TError> = {
     values: {} as TValues,
     dirtyFields: {},
     touchedFields: {},
@@ -55,22 +55,29 @@ export function createForm<TValues>(
   };
   const defaultValues = initialState.values;
 
-  const initializer: StateCreator<FormState<TValues>> = () => initialState;
-  const store = createStore<FormState<TValues>>()(
+  const initializer: StateCreator<FormState<TValues, TError>> = () =>
+    initialState;
+  const store = createStore<FormState<TValues, TError>>()(
     config.middleware ? config.middleware(initializer) : initializer,
   );
-  const registry = createFieldRegistry(dispatch);
+  const registry = createFieldRegistry<TError>(dispatch);
 
-  const defaultEnhancers: NamedEnhancer<TValues>[] = [
-    { name: "values", enhancer: valuesEnhancer(defaultValues) },
-    { name: "touched", enhancer: touchedEnhancer() },
-    { name: "dirty", enhancer: dirtyEnhancer(defaultValues) },
-    { name: "validation", enhancer: validationEnhancer(registry) },
+  const defaultEnhancers: NamedEnhancer<TValues, TError>[] = [
+    {
+      name: "values",
+      enhancer: valuesEnhancer<TValues, TError>(defaultValues),
+    },
+    { name: "touched", enhancer: touchedEnhancer<TValues, TError>() },
+    { name: "dirty", enhancer: dirtyEnhancer<TValues, TError>(defaultValues) },
+    {
+      name: "validation",
+      enhancer: validationEnhancer<TValues, TError>(registry),
+    },
     ...(config.resolver
       ? [
           {
             name: "schemaValidation",
-            enhancer: schemaValidationEnhancer<TValues>(
+            enhancer: schemaValidationEnhancer<TValues, TError>(
               config.resolver,
               config.resolverMode,
             ),
@@ -79,13 +86,13 @@ export function createForm<TValues>(
       : []),
     {
       name: "asyncValidation",
-      enhancer: asyncValidationEnhancer(registry, dispatch),
+      enhancer: asyncValidationEnhancer<TValues, TError>(registry, dispatch),
     },
-    { name: "pending", enhancer: pendingEnhancer() },
-    { name: "submit", enhancer: submitEnhancer() },
+    { name: "pending", enhancer: pendingEnhancer<TValues, TError>() },
+    { name: "submit", enhancer: submitEnhancer<TValues, TError>() },
   ];
 
-  const enhancers: Enhancer<TValues>[] = config.enhancers
+  const enhancers: Enhancer<TValues, TError>[] = config.enhancers
     ? config
         .enhancers(defaultEnhancers)
         .map((e) => (typeof e === "function" ? e : e.enhancer))
@@ -93,14 +100,14 @@ export function createForm<TValues>(
 
   function dispatch(ctx: ActionContext): void {
     const prev = store.getState();
-    let draft: Partial<FormState<TValues>> = {};
+    let draft: Partial<FormState<TValues, TError>> = {};
     for (const e of enhancers) draft = e(ctx, prev, draft);
     if (Object.keys(draft).length > 0) {
       const action = ctx.path ? `${ctx.type}:${ctx.path}` : ctx.type;
       // zustand setState accepts 3-arg form for devtools
       (
         store.setState as (
-          fn: (s: FormState<TValues>) => FormState<TValues>,
+          fn: (s: FormState<TValues, TError>) => FormState<TValues, TError>,
           replace: boolean,
           action: string,
         ) => void
@@ -108,7 +115,7 @@ export function createForm<TValues>(
     }
   }
 
-  const select: FormSelectors<TValues> = {
+  const select: FormSelectors<TValues, TError> = {
     values: (s) => s.values,
     isSubmitting: (s) => s.isSubmitting,
     submitCount: (s) => s.submitCount,
@@ -121,9 +128,9 @@ export function createForm<TValues>(
     setState: store.setState,
     subscribe: store.subscribe,
     getInitialState: store.getInitialState,
-    field: createFieldNamespace(store, dispatch),
-    fieldArray: createFieldArrayNamespace(store, dispatch),
-    tree: createTreeNamespace(store, dispatch),
+    field: createFieldNamespace<TValues, TError>(store, dispatch),
+    fieldArray: createFieldArrayNamespace<TValues, TError>(store, dispatch),
+    tree: createTreeNamespace<TValues, TError>(store, dispatch),
     getValues: () => store.getState().values,
     isSubmitting: () => store.getState().isSubmitting,
     submitCount: () => store.getState().submitCount,
@@ -140,7 +147,7 @@ export function createForm<TValues>(
       if (errorKeys.length > 0) {
         dispatch({ type: A.SUBMIT_FAILURE });
         if (onInvalid) {
-          const errs: Record<string, string> = {};
+          const errs: Record<string, TError> = {};
           for (const k of errorKeys) errs[k] = state.errors[k]!;
           onInvalid(errs);
         }

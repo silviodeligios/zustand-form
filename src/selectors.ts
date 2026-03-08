@@ -1,9 +1,9 @@
 import type { FormState } from "./core/types";
 
-export interface FormSelectors<TValues> {
-  values: (s: FormState<TValues>) => TValues;
-  isSubmitting: (s: FormState<TValues>) => boolean;
-  submitCount: (s: FormState<TValues>) => number;
-  isSubmitSuccessful: (s: FormState<TValues>) => boolean;
-  focusedField: (s: FormState<TValues>) => string | null;
+export interface FormSelectors<TValues, TError = string> {
+  values: (s: FormState<TValues, TError>) => TValues;
+  isSubmitting: (s: FormState<TValues, TError>) => boolean;
+  submitCount: (s: FormState<TValues, TError>) => number;
+  isSubmitSuccessful: (s: FormState<TValues, TError>) => boolean;
+  focusedField: (s: FormState<TValues, TError>) => string | null;
 }

@@ -3,9 +3,9 @@ import * as A from "../core/actions";
 import { getIn, isEqual } from "../core/utils";
 import { reindexPathKeyedRecord } from "../core/arrayReindex";
 
-export function dirtyEnhancer<TValues>(
+export function dirtyEnhancer<TValues, TError = string>(
   defaultValues: TValues,
-): Enhancer<TValues> {
+): Enhancer<TValues, TError> {
   return (ctx, prev, draft) => {
     switch (ctx.type) {
       case A.SET_VALUE: {

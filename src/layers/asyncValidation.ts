@@ -4,10 +4,10 @@ import type { FieldValidatorEntry } from "../validation/types";
 import * as A from "../core/actions";
 import { getIn } from "../core/utils";
 
-export function asyncValidationEnhancer<TValues>(
-  registry: FieldRegistry,
+export function asyncValidationEnhancer<TValues, TError = string>(
+  registry: FieldRegistry<TError>,
   dispatch: Dispatch,
-): Enhancer<TValues> {
+): Enhancer<TValues, TError> {
   return (ctx, prev, draft) => {
     switch (ctx.type) {
       case A.SET_VALUE: {
@@ -34,7 +34,9 @@ export function asyncValidationEnhancer<TValues>(
           ...(draft.pendingFields ?? prev.pendingFields),
           [path]: true,
         };
-        queueMicrotask(() => runAsync(path, value, entry, dispatch, registry));
+        queueMicrotask(() =>
+          runAsync<TError>(path, value, entry, dispatch, registry),
+        );
         return { ...draft, errors: clearedErrors, pendingFields: pending };
       }
       case A.BLUR: {
@@ -60,7 +62,9 @@ export function asyncValidationEnhancer<TValues>(
           ...(draft.pendingFields ?? prev.pendingFields),
           [path]: true,
         };
-        queueMicrotask(() => runAsync(path, value, entry, dispatch, registry));
+        queueMicrotask(() =>
+          runAsync<TError>(path, value, entry, dispatch, registry),
+        );
         return { ...draft, errors: clearedErrors, pendingFields: pending };
       }
       case A.ARRAY_REMOVE: {
@@ -97,12 +101,12 @@ export function asyncValidationEnhancer<TValues>(
   };
 }
 
-function runAsync(
+function runAsync<TError>(
   path: string,
   value: unknown,
-  entry: FieldValidatorEntry,
+  entry: FieldValidatorEntry<TError>,
   dispatch: Dispatch,
-  registry: FieldRegistry,
+  registry: FieldRegistry<TError>,
 ): void {
   if (entry.debounce && entry.debounce > 0) {
     // Create session immediately so reindex can update its path during debounce wait

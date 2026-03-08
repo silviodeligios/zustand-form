@@ -3,30 +3,30 @@ import type { FormHook, UseZFieldOptions, UseZFieldReturn } from "./types";
 import { shallow } from "zustand/shallow";
 import { useOptionalFormContext, missingProvider } from "./context";
 
-export function useZField<TValues>(
-  form: FormHook<TValues>,
+export function useZField<TValues, TError = string>(
+  form: FormHook<TValues, TError>,
   path: string,
-  options?: UseZFieldOptions,
-): UseZFieldReturn;
-export function useZField(
+  options?: UseZFieldOptions<TError>,
+): UseZFieldReturn<TError>;
+export function useZField<TError = string>(
   path: string,
-  options?: UseZFieldOptions,
-): UseZFieldReturn;
-export function useZField<TValues>(
-  formOrPath: FormHook<TValues> | string,
-  pathOrOptions?: string | UseZFieldOptions,
-  maybeOptions?: UseZFieldOptions,
-): UseZFieldReturn {
-  const contextForm = useOptionalFormContext<TValues>();
-  const form: FormHook<TValues> =
+  options?: UseZFieldOptions<TError>,
+): UseZFieldReturn<TError>;
+export function useZField<TValues, TError = string>(
+  formOrPath: FormHook<TValues, TError> | string,
+  pathOrOptions?: string | UseZFieldOptions<TError>,
+  maybeOptions?: UseZFieldOptions<TError>,
+): UseZFieldReturn<TError> {
+  const contextForm = useOptionalFormContext<TValues, TError>();
+  const form: FormHook<TValues, TError> =
     typeof formOrPath === "string"
       ? (contextForm ?? missingProvider())
       : formOrPath;
   const path: string =
     typeof formOrPath === "string" ? formOrPath : (pathOrOptions as string);
-  const options: UseZFieldOptions | undefined =
+  const options: UseZFieldOptions<TError> | undefined =
     typeof formOrPath === "string"
-      ? (pathOrOptions as UseZFieldOptions | undefined)
+      ? (pathOrOptions as UseZFieldOptions<TError> | undefined)
       : maybeOptions;
   const validate = options?.validate;
   const validateMode = options?.validateMode;

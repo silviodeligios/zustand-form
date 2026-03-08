@@ -10,11 +10,11 @@ import type { FieldValidatorEntry } from "../validation/types";
 // State
 // ---------------------------------------------------------------------------
 
-export interface FormState<TValues> {
+export interface FormState<TValues, TError = string> {
   values: TValues;
   dirtyFields: Record<string, boolean>;
   touchedFields: Record<string, boolean>;
-  errors: Record<string, string | undefined>;
+  errors: Record<string, TError | undefined>;
   pendingFields: Record<string, boolean>;
   focusedField: string | null;
   isSubmitting: boolean;
@@ -69,40 +69,40 @@ export interface ActionContext {
 export type Dispatch = (ctx: ActionContext) => void;
 
 /** Enhancer: receives context, previous state, accumulated draft; returns enriched draft */
-export type Enhancer<TValues> = (
+export type Enhancer<TValues, TError = string> = (
   ctx: ActionContext,
-  prev: FormState<TValues>,
-  draft: Partial<FormState<TValues>>,
-) => Partial<FormState<TValues>>;
+  prev: FormState<TValues, TError>,
+  draft: Partial<FormState<TValues, TError>>,
+) => Partial<FormState<TValues, TError>>;
 
 /** Named enhancer: wraps an Enhancer with a string tag for pipeline manipulation */
-export interface NamedEnhancer<TValues> {
+export interface NamedEnhancer<TValues, TError = string> {
   name: string;
-  enhancer: Enhancer<TValues>;
+  enhancer: Enhancer<TValues, TError>;
 }
 
 // ---------------------------------------------------------------------------
 // Form (top-level interface)
 // ---------------------------------------------------------------------------
 
-export interface Form<TValues> {
-  getState: StoreApi<FormState<TValues>>["getState"];
-  setState: StoreApi<FormState<TValues>>["setState"];
-  subscribe: StoreApi<FormState<TValues>>["subscribe"];
-  getInitialState: StoreApi<FormState<TValues>>["getInitialState"];
-  field: FieldNamespace<TValues>;
-  fieldArray: FieldArrayNamespace<TValues>;
-  tree: TreeNamespace<TValues>;
+export interface Form<TValues, TError = string> {
+  getState: StoreApi<FormState<TValues, TError>>["getState"];
+  setState: StoreApi<FormState<TValues, TError>>["setState"];
+  subscribe: StoreApi<FormState<TValues, TError>>["subscribe"];
+  getInitialState: StoreApi<FormState<TValues, TError>>["getInitialState"];
+  field: FieldNamespace<TValues, TError>;
+  fieldArray: FieldArrayNamespace<TValues, TError>;
+  tree: TreeNamespace<TValues, TError>;
   getValues(): TValues;
   reset(nextValues?: Partial<TValues>, options?: DispatchOptions): void;
   handleSubmit(
     onValid: (values: TValues) => void | Promise<void>,
-    onInvalid?: (errors: Record<string, string>) => void,
+    onInvalid?: (errors: Record<string, TError>) => void,
   ): (e?: Event) => void;
   isSubmitting(): boolean;
   submitCount(): number;
   isSubmitSuccessful(): boolean;
-  registerField(path: string, entry: FieldValidatorEntry): void;
+  registerField(path: string, entry: FieldValidatorEntry<TError>): void;
   unregisterField(path: string): void;
-  select: FormSelectors<TValues>;
+  select: FormSelectors<TValues, TError>;
 }

@@ -5,10 +5,10 @@ import * as A from "../core/actions";
 import { getIn } from "../core/utils";
 import { createFieldSelectors } from "./selectors";
 
-export function createFieldNamespace<TValues>(
-  store: StoreApi<FormState<TValues>>,
+export function createFieldNamespace<TValues, TError = string>(
+  store: StoreApi<FormState<TValues, TError>>,
   dispatch: Dispatch,
-): FieldNamespace<TValues> {
+): FieldNamespace<TValues, TError> {
   const s = () => store.getState();
 
   return {
@@ -39,6 +39,6 @@ export function createFieldNamespace<TValues>(
     pendingEnd: (path, opts?) =>
       dispatch({ type: A.PENDING_END, path, options: opts }),
 
-    select: createFieldSelectors<TValues>(),
+    select: createFieldSelectors<TValues, TError>(),
   };
 }

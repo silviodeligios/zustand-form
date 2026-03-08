@@ -4,9 +4,9 @@ import * as A from "../core/actions";
 import { getIn, treeMatcher } from "../core/utils";
 import { reindexPathKeyedRecord } from "../core/arrayReindex";
 
-export function validationEnhancer<TValues>(
-  registry: FieldRegistry,
-): Enhancer<TValues> {
+export function validationEnhancer<TValues, TError = string>(
+  registry: FieldRegistry<TError>,
+): Enhancer<TValues, TError> {
   return (ctx, prev, draft) => {
     switch (ctx.type) {
       case A.SET_VALUE: {
@@ -36,7 +36,7 @@ export function validationEnhancer<TValues>(
         const base = draft.errors ?? prev.errors;
         return {
           ...draft,
-          errors: { ...base, [ctx.path]: ctx.value as string },
+          errors: { ...base, [ctx.path]: ctx.value as TError },
         };
       }
       case A.CLEAR_ERROR: {
@@ -53,7 +53,7 @@ export function validationEnhancer<TValues>(
         if (ctx.value)
           return {
             ...draft,
-            errors: { ...base, [ctx.path]: ctx.value as string },
+            errors: { ...base, [ctx.path]: ctx.value as TError },
           };
         const { [ctx.path]: _, ...rest } = base;
         return { ...draft, errors: rest };
@@ -61,7 +61,7 @@ export function validationEnhancer<TValues>(
       case A.CLEAR_ERRORS_BRANCH: {
         const match = treeMatcher(ctx.path);
         const base = draft.errors ?? prev.errors;
-        const next: Record<string, string | undefined> = {};
+        const next: Record<string, TError | undefined> = {};
         for (const k of Object.keys(base)) {
           if (!match(k)) next[k] = base[k];
         }

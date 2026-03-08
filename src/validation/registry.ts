@@ -8,11 +8,11 @@ import {
 import * as A from "../core/actions";
 import type { FieldValidatorEntry } from "./types";
 
-export interface FieldRegistry {
-  register(path: string, entry: FieldValidatorEntry): void;
+export interface FieldRegistry<TError = string> {
+  register(path: string, entry: FieldValidatorEntry<TError>): void;
   unregister(path: string): void;
-  get(path: string): FieldValidatorEntry | undefined;
-  getAll(): Map<string, FieldValidatorEntry>;
+  get(path: string): FieldValidatorEntry<TError> | undefined;
+  getAll(): Map<string, FieldValidatorEntry<TError>>;
   /** Get and increment the async version for a path (for stale cancellation) */
   nextVersion(path: string): number;
   /** Get current async version for a path */
@@ -31,8 +31,10 @@ export interface FieldRegistry {
   deleteSession(id: number): void;
 }
 
-export function createFieldRegistry(dispatch: Dispatch): FieldRegistry {
-  const validators = new Map<string, FieldValidatorEntry>();
+export function createFieldRegistry<TError = string>(
+  dispatch: Dispatch,
+): FieldRegistry<TError> {
+  const validators = new Map<string, FieldValidatorEntry<TError>>();
   const asyncVersions = new Map<string, number>();
   const asyncTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** Paths that were moved by a reindex op — unregister should skip cleanup for these */

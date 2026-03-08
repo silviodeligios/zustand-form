@@ -1,7 +1,10 @@
 import type { Enhancer } from "../core/types";
 import * as A from "../core/actions";
 
-export function submitEnhancer<TValues>(): Enhancer<TValues> {
+export function submitEnhancer<TValues, TError = string>(): Enhancer<
+  TValues,
+  TError
+> {
   return (ctx, prev, draft) => {
     switch (ctx.type) {
       case A.SUBMIT:

@@ -8,17 +8,17 @@ function generateKey(): string {
   return "_k" + String(keyCounter++);
 }
 
-export function useZFieldArray<TValues>(
-  form: FormHook<TValues>,
+export function useZFieldArray<TValues, TError = string>(
+  form: FormHook<TValues, TError>,
   path: string,
 ): UseZFieldArrayReturn;
 export function useZFieldArray(path: string): UseZFieldArrayReturn;
-export function useZFieldArray<TValues>(
-  formOrPath: FormHook<TValues> | string,
+export function useZFieldArray<TValues, TError = string>(
+  formOrPath: FormHook<TValues, TError> | string,
   maybePath?: string,
 ): UseZFieldArrayReturn {
-  const contextForm = useOptionalFormContext<TValues>();
-  const form: FormHook<TValues> =
+  const contextForm = useOptionalFormContext<TValues, TError>();
+  const form: FormHook<TValues, TError> =
     typeof formOrPath === "string"
       ? (contextForm ?? missingProvider())
       : formOrPath;

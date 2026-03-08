@@ -5,10 +5,10 @@ import * as A from "../core/actions";
 import { treeMatcher } from "../core/utils";
 import { createTreeSelectors } from "./selectors";
 
-export function createTreeNamespace<TValues>(
-  store: StoreApi<FormState<TValues>>,
+export function createTreeNamespace<TValues, TError = string>(
+  store: StoreApi<FormState<TValues, TError>>,
   dispatch: Dispatch,
-): TreeNamespace<TValues> {
+): TreeNamespace<TValues, TError> {
   const s = () => store.getState();
   const matcherCache = new Map<string, (key: string) => boolean>();
 
@@ -23,10 +23,10 @@ export function createTreeNamespace<TValues>(
   }
 
   function filterErrors(
-    state: FormState<TValues>,
+    state: FormState<TValues, TError>,
     match: (k: string) => boolean,
-  ): Record<string, string> {
-    const result: Record<string, string> = {};
+  ): Record<string, TError> {
+    const result: Record<string, TError> = {};
     for (const k of Object.keys(state.errors)) {
       const v = state.errors[k];
       if (match(k) && v !== undefined) result[k] = v;
@@ -55,6 +55,6 @@ export function createTreeNamespace<TValues>(
     validate: (path?, opts?) =>
       dispatch({ type: A.VALIDATE_BRANCH, path, options: opts }),
 
-    select: createTreeSelectors<TValues>(getMatcher, filterErrors),
+    select: createTreeSelectors<TValues, TError>(getMatcher, filterErrors),
   };
 }

@@ -5,9 +5,9 @@ export interface FieldArrayItem {
   index: number;
 }
 
-type Selector<TValues, R> = (s: FormState<TValues>) => R;
+type Selector<TValues, TError, R> = (s: FormState<TValues, TError>) => R;
 
-export interface FieldArrayNamespace<TValues> {
+export interface FieldArrayNamespace<TValues, TError = string> {
   getLength(path: string): number;
   setValue(path: string, arr: unknown[], options?: DispatchOptions): void;
   append(path: string, value: unknown, options?: DispatchOptions): void;
@@ -27,6 +27,6 @@ export interface FieldArrayNamespace<TValues> {
     options?: DispatchOptions,
   ): void;
   select: {
-    length(path: string): Selector<TValues, number>;
+    length(path: string): Selector<TValues, TError, number>;
   };
 }

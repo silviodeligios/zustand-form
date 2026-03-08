@@ -2,9 +2,9 @@ import type { Enhancer } from "../core/types";
 import * as A from "../core/actions";
 import { setIn, getIn } from "../core/utils";
 
-export function valuesEnhancer<TValues>(
+export function valuesEnhancer<TValues, TError = string>(
   defaultValues: TValues,
-): Enhancer<TValues> {
+): Enhancer<TValues, TError> {
   return (ctx, prev, draft) => {
     switch (ctx.type) {
       case A.SET_VALUE: {

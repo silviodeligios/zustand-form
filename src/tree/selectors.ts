@@ -1,6 +1,6 @@
 import type { FormState } from "../core/types";
 
-type Selector<R> = (s: FormState<unknown>) => R;
+type Selector<R> = (s: FormState<unknown, unknown>) => R;
 
 function cached<R>(
   map: Map<string, Selector<R>>,
@@ -15,19 +15,19 @@ function cached<R>(
   return sel;
 }
 
-export function createTreeSelectors<TValues>(
+export function createTreeSelectors<TValues, TError = string>(
   getMatcher: (path?: string) => (key: string) => boolean,
   filterErrors: (
-    s: FormState<TValues>,
+    s: FormState<TValues, TError>,
     match: (k: string) => boolean,
-  ) => Record<string, string>,
+  ) => Record<string, TError>,
 ) {
   const cache = {
     dirty: new Map<string, Selector<boolean>>(),
     touched: new Map<string, Selector<boolean>>(),
     pending: new Map<string, Selector<boolean>>(),
     valid: new Map<string, Selector<boolean>>(),
-    errors: new Map<string, Selector<Record<string, string>>>(),
+    errors: new Map<string, Selector<Record<string, TError>>>(),
     dirtyFields: new Map<string, Selector<string[]>>(),
     touchedFields: new Map<string, Selector<string[]>>(),
     errorCount: new Map<string, Selector<number>>(),
@@ -43,7 +43,7 @@ export function createTreeSelectors<TValues>(
         cache.dirty,
         k,
         () => (s) => Object.keys(s.dirtyFields).some(match),
-      ) as (s: FormState<TValues>) => boolean;
+      ) as (s: FormState<TValues, TError>) => boolean;
     },
     touched: (path?: string) => {
       const k = cacheKey(path);
@@ -52,7 +52,7 @@ export function createTreeSelectors<TValues>(
         cache.touched,
         k,
         () => (s) => Object.keys(s.touchedFields).some(match),
-      ) as (s: FormState<TValues>) => boolean;
+      ) as (s: FormState<TValues, TError>) => boolean;
     },
     pending: (path?: string) => {
       const k = cacheKey(path);
@@ -61,7 +61,7 @@ export function createTreeSelectors<TValues>(
         cache.pending,
         k,
         () => (s) => Object.keys(s.pendingFields).some(match),
-      ) as (s: FormState<TValues>) => boolean;
+      ) as (s: FormState<TValues, TError>) => boolean;
     },
     valid: (path?: string) => {
       const k = cacheKey(path);
@@ -73,7 +73,7 @@ export function createTreeSelectors<TValues>(
           !Object.keys(s.errors).some(
             (key) => match(key) && s.errors[key] !== undefined,
           ),
-      ) as (s: FormState<TValues>) => boolean;
+      ) as (s: FormState<TValues, TError>) => boolean;
     },
     errors: (path?: string) => {
       const k = cacheKey(path);
@@ -81,8 +81,8 @@ export function createTreeSelectors<TValues>(
       return cached(
         cache.errors,
         k,
-        () => (s) => filterErrors(s as FormState<TValues>, match),
-      ) as (s: FormState<TValues>) => Record<string, string>;
+        () => (s) => filterErrors(s as FormState<TValues, TError>, match),
+      ) as (s: FormState<TValues, TError>) => Record<string, TError>;
     },
     dirtyFields: (path?: string) => {
       const k = cacheKey(path);
@@ -91,7 +91,7 @@ export function createTreeSelectors<TValues>(
         cache.dirtyFields,
         k,
         () => (s) => Object.keys(s.dirtyFields).filter(match),
-      ) as (s: FormState<TValues>) => string[];
+      ) as (s: FormState<TValues, TError>) => string[];
     },
     touchedFields: (path?: string) => {
       const k = cacheKey(path);
@@ -100,7 +100,7 @@ export function createTreeSelectors<TValues>(
         cache.touchedFields,
         k,
         () => (s) => Object.keys(s.touchedFields).filter(match),
-      ) as (s: FormState<TValues>) => string[];
+      ) as (s: FormState<TValues, TError>) => string[];
     },
     errorCount: (path?: string) => {
       const k = cacheKey(path);
@@ -112,7 +112,7 @@ export function createTreeSelectors<TValues>(
           Object.keys(s.errors).filter(
             (key) => match(key) && s.errors[key] !== undefined,
           ).length,
-      ) as (s: FormState<TValues>) => number;
+      ) as (s: FormState<TValues, TError>) => number;
     },
   };
 }

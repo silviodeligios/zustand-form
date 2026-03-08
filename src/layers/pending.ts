@@ -2,7 +2,10 @@ import type { Enhancer } from "../core/types";
 import * as A from "../core/actions";
 import { reindexPathKeyedRecord } from "../core/arrayReindex";
 
-export function pendingEnhancer<TValues>(): Enhancer<TValues> {
+export function pendingEnhancer<TValues, TError = string>(): Enhancer<
+  TValues,
+  TError
+> {
   return (ctx, prev, draft) => {
     switch (ctx.type) {
       case A.PENDING_START: {

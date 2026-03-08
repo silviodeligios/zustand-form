@@ -2,10 +2,10 @@ import type { Enhancer } from "../core/types";
 import type { FormResolver, FieldValidateMode } from "../validation/types";
 import * as A from "../core/actions";
 
-export function schemaValidationEnhancer<TValues>(
-  resolver: FormResolver<TValues>,
+export function schemaValidationEnhancer<TValues, TError = string>(
+  resolver: FormResolver<TValues, TError>,
   mode?: FieldValidateMode,
-): Enhancer<TValues> {
+): Enhancer<TValues, TError> {
   const resolverMode = mode ?? "onChange";
 
   return (ctx, prev, draft) => {

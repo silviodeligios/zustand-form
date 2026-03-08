@@ -4,7 +4,7 @@ import type { FieldArrayNamespace } from "./types";
 import * as A from "../core/actions";
 import { getIn } from "../core/utils";
 
-type Selector<R> = (s: FormState<unknown>) => R;
+type Selector<R> = (s: FormState<unknown, unknown>) => R;
 
 function cached<R>(
   map: Map<string, Selector<R>>,
@@ -19,10 +19,10 @@ function cached<R>(
   return sel;
 }
 
-export function createFieldArrayNamespace<TValues>(
-  store: StoreApi<FormState<TValues>>,
+export function createFieldArrayNamespace<TValues, TError = string>(
+  store: StoreApi<FormState<TValues, TError>>,
   dispatch: Dispatch,
-): FieldArrayNamespace<TValues> {
+): FieldArrayNamespace<TValues, TError> {
   const s = () => store.getState();
 
   const lengthCache = new Map<string, Selector<number>>();
@@ -65,7 +65,7 @@ export function createFieldArrayNamespace<TValues>(
           path,
           () => (s) =>
             ((getIn(s.values, path) as unknown[] | undefined) ?? []).length,
-        ) as (s: FormState<TValues>) => number,
+        ) as (s: FormState<TValues, TError>) => number,
     },
   };
 }
