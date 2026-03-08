@@ -3,8 +3,8 @@ import type {
   FormHook,
   UseZFieldOptions,
   UseZFieldArrayReturn,
-  FieldArrayState,
 } from "./types";
+import { shallow } from "zustand/shallow";
 import type { Path, PathValue, ArrayElement } from "../types/paths";
 import type { DispatchOptions } from "../core/types";
 import { useOptionalFormContext, missingProvider } from "./context";
@@ -52,14 +52,7 @@ export function useZFieldArray<TValues, TError = string>(
       : maybeOptions;
   useZFieldValidation(form, path as Path<TValues>, options);
 
-  const error = form(form.field.select.error(path));
-  const dirty = form(form.field.select.dirty(path));
-  const touched = form(form.field.select.touched(path));
-  const pending = form(form.field.select.pending(path));
-  const fieldState: FieldArrayState<TError> = useMemo(
-    () => ({ error, dirty, touched, pending }),
-    [error, dirty, touched, pending],
-  );
+  const fieldState = form(form.field.select.fieldState(path), shallow);
 
   const length = form(form.fieldArray.select.length(path));
   const [version, setVersion] = useState(0);

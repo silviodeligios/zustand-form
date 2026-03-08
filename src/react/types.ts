@@ -31,18 +31,10 @@ export interface UseZFieldReturn<TError = string, TValue = unknown> {
   fieldState: FieldState<TError>;
 }
 
-/** Field array state (subset of FieldState without value/focused) */
-export interface FieldArrayState<TError = string> {
-  dirty: boolean;
-  touched: boolean;
-  error: TError | undefined;
-  pending: boolean;
-}
-
 /** Return type of useZFieldArray */
 export interface UseZFieldArrayReturn<TError = string, TElement = unknown> {
   fields: FieldArrayItem[];
-  fieldState: FieldArrayState<TError>;
+  fieldState: FieldState<TError>;
   append(value: TElement, options?: DispatchOptions): void;
   prepend(value: TElement, options?: DispatchOptions): void;
   remove(index: number, options?: DispatchOptions): void;

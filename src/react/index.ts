@@ -7,6 +7,5 @@ export type {
   FormHook,
   UseZFieldOptions,
   UseZFieldReturn,
-  FieldArrayState,
   UseZFieldArrayReturn,
 } from "./types";
