@@ -67,6 +67,12 @@ export function valuesEnhancer<TValues, TError = string>(
         const initial = getIn(defaultValues, ctx.path);
         return { ...draft, values: setIn(base, ctx.path, initial) };
       }
+      case A.RESET_BRANCH: {
+        if (!ctx.path) return { ...draft, values: defaultValues };
+        const base = draft.values ?? prev.values;
+        const initial = getIn(defaultValues, ctx.path);
+        return { ...draft, values: setIn(base, ctx.path, initial) };
+      }
       default:
         return draft;
     }

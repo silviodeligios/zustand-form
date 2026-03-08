@@ -122,10 +122,34 @@ export function validationEnhancer<TValues, TError = string>(
         const values = draft.values ?? prev.values;
         const all = registry.getAll();
         all.forEach((entry, path) => {
-          if (!entry.validate) return;
-          const error = entry.validate(getIn(values, path));
-          if (error) errors = { ...errors, [path]: error };
+          const error = entry.validate
+            ? entry.validate(getIn(values, path))
+            : undefined;
+          errors = { ...errors, [path]: error };
         });
+        return { ...draft, errors };
+      }
+      case A.RESET_BRANCH: {
+        const match = treeMatcher(ctx.path);
+        const base = draft.errors ?? prev.errors;
+        const next: Record<string, TError | undefined> = {};
+        for (const k of Object.keys(base)) {
+          if (!match(k)) next[k] = base[k];
+        }
+        return { ...draft, errors: next };
+      }
+      case A.VALIDATE_BRANCH: {
+        const match = treeMatcher(ctx.path);
+        let errors = draft.errors ?? prev.errors;
+        const values = draft.values ?? prev.values;
+        const all = registry.getAll();
+        for (const [path, entry] of all) {
+          if (!match(path)) continue;
+          const error = entry.validate
+            ? entry.validate(getIn(values, path))
+            : undefined;
+          errors = { ...errors, [path]: error };
+        }
         return { ...draft, errors };
       }
       case A.RESET_FORM:

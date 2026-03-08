@@ -40,47 +40,30 @@ export const defaultValues: FormValues = {
   name: "",
   email: "",
   category: null,
-  sections: [
-    {
-      title: "First section",
-      items: [
-        { label: "Item A" },
-        { label: "Item B" },
-      ],
-    },
-    {
-      title: "Second section",
-      items: [
-        { label: "" },
-      ],
-    },
-  ],
+  sections: [],
 };
 
 // ---------------------------------------------------------------------------
-// Resolver: FormResolver interface — validates one field at a time
+// Resolver: FormResolver interface — validates all fields at once
 // ---------------------------------------------------------------------------
 
 export const resolver: FormResolver<FormValues> = {
-  validateField(path: string, values: FormValues): string | undefined {
-    if (path === "name" && !values.name?.trim()) return "Name required";
-    if (path === "email" && !values.email?.trim()) return "Email required";
-    if (path === "category" && !values.category) return "Category required";
+  validate(values: FormValues): Record<string, string | undefined> {
+    const errors: Record<string, string | undefined> = {};
 
-    const sectionTitleMatch = path.match(/^sections\.(\d+)\.title$/);
-    if (sectionTitleMatch) {
-      const si = Number(sectionTitleMatch[1]);
-      if (!values.sections?.[si]?.title?.trim()) return "Section title required";
-    }
+    if (!values.name?.trim()) errors.name = "Name required";
+    if (!values.category) errors.category = "Category required";
 
-    const itemLabelMatch = path.match(/^sections\.(\d+)\.items\.(\d+)\.label$/);
-    if (itemLabelMatch) {
-      const si = Number(itemLabelMatch[1]);
-      const ii = Number(itemLabelMatch[2]);
-      if (!values.sections?.[si]?.items?.[ii]?.label?.trim()) return "Label required";
-    }
+    values.sections?.forEach((section, si) => {
+      if (!section.title?.trim())
+        errors[`sections.${si}.title`] = "Section title required";
+      section.items?.forEach((item, ii) => {
+        if (!item.label?.trim())
+          errors[`sections.${si}.items.${ii}.label`] = "Label required";
+      });
+    });
 
-    return undefined;
+    return errors;
   },
 };
 
@@ -89,7 +72,7 @@ export const resolver: FormResolver<FormValues> = {
 // ---------------------------------------------------------------------------
 
 export const validateEmailSync = (value: unknown): string | undefined => {
-  if (!value) return;
+  if (!value) return "Email required";
   if (typeof value !== "string") return "Email must be a string";
   if (!value.includes("@")) return "Email must contain @";
   return undefined;
@@ -114,13 +97,15 @@ export const checkLabelUniqueness = async (label: string): Promise<string | unde
 };
 
 export const validateSectionsMinLength = (value: unknown): string | undefined => {
-  if (!Array.isArray(value) || value.length < 2) return "At least 2 sections required";
+  if (!Array.isArray(value) || value.length < 1) return "At least 1 section required";
   return undefined;
 };
 
 export const checkSectionsMaxLength = async (value: unknown): Promise<string | undefined> => {
+  // Only run async when sync passes (length > 1)
+  if (!Array.isArray(value) || value.length < 1) return undefined;
   await sleep(1500);
-  if (Array.isArray(value) && value.length > 3) return "Max 3 sections allowed (server)";
+  if (value.length > 3) return "Max 3 sections allowed (server)";
   return undefined;
 };
 

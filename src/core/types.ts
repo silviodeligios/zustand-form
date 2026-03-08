@@ -40,8 +40,6 @@ export type ActionType =
   | typeof A.BLUR
   | typeof A.VALIDATE_FIELD
   | typeof A.RESET_FIELD
-  | typeof A.PENDING_START
-  | typeof A.PENDING_END
   | typeof A.ASYNC_RESOLVE
   | typeof A.CLEAR_ERRORS_BRANCH
   | typeof A.RESET_BRANCH
@@ -98,7 +96,7 @@ export interface Form<TValues, TError = string> {
   handleSubmit(
     onValid: (values: TValues) => void | Promise<void>,
     onInvalid?: (errors: Record<string, TError>) => void,
-  ): (e?: Event) => void;
+  ): (e?: Event) => void | Promise<void>;
   isSubmitting(): boolean;
   submitCount(): number;
   isSubmitSuccessful(): boolean;

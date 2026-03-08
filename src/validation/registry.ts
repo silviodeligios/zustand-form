@@ -62,7 +62,7 @@ export function createFieldRegistry<TError = string>(
       // Invalidate any pending promise
       asyncVersions.set(path, (asyncVersions.get(path) ?? 0) + 1);
       // Clear pending state
-      dispatch({ type: A.PENDING_END, path });
+      dispatch({ type: A.ASYNC_RESOLVE, path });
     },
 
     get: (path) => validators.get(path),

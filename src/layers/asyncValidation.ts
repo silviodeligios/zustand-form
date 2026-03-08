@@ -2,7 +2,8 @@ import type { Enhancer, Dispatch } from "../core/types";
 import type { FieldRegistry } from "../validation/registry";
 import type { FieldValidatorEntry } from "../validation/types";
 import * as A from "../core/actions";
-import { getIn } from "../core/utils";
+import { getIn, treeMatcher } from "../core/utils";
+import { reindexPathKeyedRecord } from "../core/arrayReindex";
 
 export function asyncValidationEnhancer<TValues, TError = string>(
   registry: FieldRegistry<TError>,
@@ -67,6 +68,12 @@ export function asyncValidationEnhancer<TValues, TError = string>(
         );
         return { ...draft, errors: clearedErrors, pendingFields: pending };
       }
+      case A.ASYNC_RESOLVE: {
+        if (!ctx.path) return draft;
+        const { [ctx.path]: _, ...rest } =
+          draft.pendingFields ?? prev.pendingFields;
+        return { ...draft, pendingFields: rest };
+      }
       case A.ARRAY_APPEND:
       case A.ARRAY_REMOVE:
       case A.ARRAY_INSERT:
@@ -90,31 +97,95 @@ export function asyncValidationEnhancer<TValues, TError = string>(
             from: ctx.from!,
             to: ctx.to!,
           });
+        // Reindex pending fields
+        let pendingBase = draft.pendingFields ?? prev.pendingFields;
+        if (ctx.type === A.ARRAY_REMOVE)
+          pendingBase = reindexPathKeyedRecord(pendingBase, ctx.path, {
+            type: "remove",
+            index: ctx.index!,
+          });
+        else if (ctx.type === A.ARRAY_INSERT)
+          pendingBase = reindexPathKeyedRecord(pendingBase, ctx.path, {
+            type: "insert",
+            index: ctx.index!,
+          });
+        else if (ctx.type === A.ARRAY_MOVE)
+          pendingBase = reindexPathKeyedRecord(pendingBase, ctx.path, {
+            type: "move",
+            from: ctx.from!,
+            to: ctx.to!,
+          });
+        else if (ctx.type === A.ARRAY_SWAP)
+          pendingBase = reindexPathKeyedRecord(pendingBase, ctx.path, {
+            type: "swap",
+            from: ctx.from!,
+            to: ctx.to!,
+          });
         // Trigger async validation on array path itself
         const entry = registry.get(ctx.path);
-        if (!entry?.asyncValidate) return draft;
+        if (!entry?.asyncValidate)
+          return { ...draft, pendingFields: pendingBase };
         // Cancel if sync error present
         if (draft.errors?.[ctx.path]) {
           registry.nextVersion(ctx.path);
           registry.clearTimer(ctx.path);
-          const { [ctx.path]: _, ...rest } =
-            draft.pendingFields ?? prev.pendingFields;
+          const { [ctx.path]: _, ...rest } = pendingBase;
           return { ...draft, pendingFields: rest };
         }
         if ((entry.asyncValidateMode ?? "onChange") !== "onChange")
-          return draft;
+          return { ...draft, pendingFields: pendingBase };
         const value = getIn(draft.values ?? prev.values, ctx.path);
         const path = ctx.path;
         const errors = draft.errors ?? prev.errors;
         const { [path]: _, ...clearedErrors } = errors;
-        const pending = {
-          ...(draft.pendingFields ?? prev.pendingFields),
-          [path]: true,
-        };
+        const pending = { ...pendingBase, [path]: true };
         queueMicrotask(() =>
           runAsync<TError>(path, value, entry, dispatch, registry),
         );
         return { ...draft, errors: clearedErrors, pendingFields: pending };
+      }
+      case A.RESET_FORM:
+        return { ...draft, pendingFields: {} };
+      case A.RESET_FIELD: {
+        if (!ctx.path) return draft;
+        const { [ctx.path]: _, ...rest } =
+          draft.pendingFields ?? prev.pendingFields;
+        return { ...draft, pendingFields: rest };
+      }
+      case A.RESET_BRANCH: {
+        const match = treeMatcher(ctx.path);
+        const all = registry.getAll();
+        for (const [path] of all) {
+          if (match(path)) {
+            registry.nextVersion(path);
+            registry.clearTimer(path);
+          }
+        }
+        const base = draft.pendingFields ?? prev.pendingFields;
+        const next: Record<string, boolean> = {};
+        for (const k of Object.keys(base)) {
+          if (!match(k) && base[k] !== undefined) next[k] = base[k];
+        }
+        return { ...draft, pendingFields: next };
+      }
+      case A.VALIDATE_BRANCH: {
+        const match = treeMatcher(ctx.path);
+        const values = draft.values ?? prev.values;
+        let errors = draft.errors ?? prev.errors;
+        let pending = draft.pendingFields ?? prev.pendingFields;
+        const all = registry.getAll();
+        for (const [path, entry] of all) {
+          if (!match(path) || !entry.asyncValidate) continue;
+          if (errors[path]) continue;
+          const value = getIn(values, path);
+          const { [path]: _, ...clearedErrors } = errors;
+          errors = clearedErrors;
+          pending = { ...pending, [path]: true };
+          queueMicrotask(() =>
+            runAsync<TError>(path, value, entry, dispatch, registry),
+          );
+        }
+        return { ...draft, errors, pendingFields: pending };
       }
       default:
         return draft;

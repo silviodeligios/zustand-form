@@ -16,9 +16,7 @@ export const CLEAR_ERRORS_BRANCH = "CLEAR_ERRORS_BRANCH" as const;
 export const RESET_BRANCH = "RESET_BRANCH" as const;
 export const VALIDATE_BRANCH = "VALIDATE_BRANCH" as const;
 
-// Pending actions (async validation lifecycle)
-export const PENDING_START = "PENDING_START" as const;
-export const PENDING_END = "PENDING_END" as const;
+// Async validation lifecycle
 export const ASYNC_RESOLVE = "ASYNC_RESOLVE" as const;
 
 // Array actions (operate on array at path)

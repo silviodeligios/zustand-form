@@ -1,6 +1,6 @@
 import type { Enhancer } from "../core/types";
 import * as A from "../core/actions";
-import { getIn, isEqual } from "../core/utils";
+import { getIn, isEqual, treeMatcher } from "../core/utils";
 import { reindexPathKeyedRecord } from "../core/arrayReindex";
 
 export function dirtyEnhancer<TValues, TError = string>(
@@ -74,6 +74,15 @@ export function dirtyEnhancer<TValues, TError = string>(
         const { [ctx.path]: _, ...rest } =
           draft.dirtyFields ?? prev.dirtyFields;
         return { ...draft, dirtyFields: rest };
+      }
+      case A.RESET_BRANCH: {
+        const match = treeMatcher(ctx.path);
+        const base = draft.dirtyFields ?? prev.dirtyFields;
+        const next: Record<string, boolean> = {};
+        for (const k of Object.keys(base)) {
+          if (!match(k) && base[k] !== undefined) next[k] = base[k];
+        }
+        return { ...draft, dirtyFields: next };
       }
       default:
         return draft;

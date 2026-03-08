@@ -18,7 +18,6 @@ import { valuesEnhancer } from "../layers/values";
 import { touchedEnhancer } from "../layers/touched";
 import { dirtyEnhancer } from "../layers/dirty";
 import { validationEnhancer } from "../layers/validation";
-import { pendingEnhancer } from "../layers/pending";
 import { schemaValidationEnhancer } from "../layers/schemaValidation";
 import { asyncValidationEnhancer } from "../layers/asyncValidation";
 import { submitEnhancer } from "../layers/submit";
@@ -89,7 +88,6 @@ export function createForm<TValues, TError = string>(
       name: "asyncValidation",
       enhancer: asyncValidationEnhancer<TValues, TError>(registry, dispatch),
     },
-    { name: "pending", enhancer: pendingEnhancer<TValues, TError>() },
     { name: "submit", enhancer: submitEnhancer<TValues, TError>() },
   ];
 
@@ -156,7 +154,7 @@ export function createForm<TValues, TError = string>(
       }
       const result = onValid(state.values);
       if (isThenable(result)) {
-        result.then(
+        return result.then(
           () => dispatch({ type: A.SUBMIT_SUCCESS }),
           () => dispatch({ type: A.SUBMIT_FAILURE }),
         );

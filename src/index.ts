@@ -20,7 +20,6 @@ export {
   touchedEnhancer,
   dirtyEnhancer,
   validationEnhancer,
-  pendingEnhancer,
   submitEnhancer,
   schemaValidationEnhancer,
   asyncValidationEnhancer,

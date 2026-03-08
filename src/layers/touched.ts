@@ -1,5 +1,6 @@
 import type { Enhancer } from "../core/types";
 import * as A from "../core/actions";
+import { treeMatcher } from "../core/utils";
 import { reindexPathKeyedRecord } from "../core/arrayReindex";
 
 export function touchedEnhancer<TValues, TError = string>(): Enhancer<
@@ -71,6 +72,15 @@ export function touchedEnhancer<TValues, TError = string>(): Enhancer<
         const { [ctx.path]: _, ...rest } =
           draft.touchedFields ?? prev.touchedFields;
         return { ...draft, touchedFields: rest };
+      }
+      case A.RESET_BRANCH: {
+        const match = treeMatcher(ctx.path);
+        const base = draft.touchedFields ?? prev.touchedFields;
+        const next: Record<string, boolean> = {};
+        for (const k of Object.keys(base)) {
+          if (!match(k) && base[k] !== undefined) next[k] = base[k];
+        }
+        return { ...draft, touchedFields: next };
       }
       default:
         return draft;

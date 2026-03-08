@@ -48,8 +48,6 @@ export interface FieldNamespace<TValues, TError = string> {
   blur(path: FieldPath<TValues>, options?: DispatchOptions): void;
   validate(path: FieldPath<TValues>, options?: DispatchOptions): void;
   reset(path: FieldPath<TValues>, options?: DispatchOptions): void;
-  pendingStart(path: FieldPath<TValues>, options?: DispatchOptions): void;
-  pendingEnd(path: FieldPath<TValues>, options?: DispatchOptions): void;
   select: {
     value<P extends Path<TValues>>(
       path: P,

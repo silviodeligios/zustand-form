@@ -15,7 +15,7 @@ export interface FieldValidatorEntry<TError = string, TValue = unknown> {
   debounce?: number | undefined;
 }
 
-/** Form-level schema resolver — validates one field at a time given full values */
+/** Form-level schema resolver — validates all fields given full values */
 export interface FormResolver<TValues, TError = string> {
-  validateField(path: string, values: TValues): TError | undefined;
+  validate(values: TValues): Record<string, TError | undefined>;
 }
