@@ -1,6 +1,6 @@
 import type { FormState, Form, DispatchOptions } from "../core/types";
 import type { FieldValidatorEntry } from "../validation/types";
-import type { FieldState } from "../field/types";
+import type { FieldState, InputProps } from "../field/types";
 import type { FieldArrayItem } from "../fieldArray/types";
 
 /** Form callable as React selector hook + vanilla Form methods */
@@ -25,14 +25,10 @@ export interface UseZFieldOptions<TError = string, TValue = unknown> {
 
 /** Return type of useZField */
 export interface UseZFieldReturn<TError = string, TValue = unknown> {
-  field: {
-    value: TValue;
-    onChange(value: TValue): void;
-    onBlur(): void;
-    onFocus(): void;
+  field: InputProps<TValue> & {
     ref: (el: HTMLElement | null) => void;
   };
-  fieldState: FieldState<TError, TValue>;
+  fieldState: FieldState<TError>;
 }
 
 /** Field array state (subset of FieldState without value/focused) */

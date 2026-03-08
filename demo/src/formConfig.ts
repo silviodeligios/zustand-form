@@ -1,4 +1,5 @@
-import type { FormHook, FormResolver } from "zform";
+import type { FormResolver } from "zform";
+import type { FormHook } from "zform/react";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export { sleep };

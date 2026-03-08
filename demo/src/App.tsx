@@ -1,4 +1,4 @@
-import { useZForm } from "zform";
+import { useZForm } from "zform/react";
 import { devtools } from "zustand/middleware";
 import { defaultValues, resolver, sleep } from "./formConfig";
 import type { FormValues } from "./formConfig";

@@ -1,5 +1,5 @@
 import { memo, useState, useCallback } from "react";
-import { useZFieldArray } from "zform";
+import { useZFieldArray } from "zform/react";
 import {
   checkSectionTitleUniqueness,
   validateSectionsMinLength,

@@ -30,7 +30,7 @@ export {
 } from "./core/arrayReindex";
 
 // Field
-export type { FieldNamespace, FieldState } from "./field/types";
+export type { FieldNamespace, FieldState, InputProps } from "./field/types";
 
 // Tree
 export type { TreeNamespace } from "./tree/types";
@@ -47,21 +47,3 @@ export type {
 
 // Selectors
 export type { FormSelectors } from "./selectors";
-
-// React
-export {
-  useZForm,
-  useZField,
-  useZFieldValidation,
-  useZFieldArray,
-  FormProvider,
-  useFormContext,
-} from "./react";
-export type {
-  FormHook,
-  UseZFormConfig,
-  UseZFieldOptions,
-  UseZFieldReturn,
-  FieldArrayState,
-  UseZFieldArrayReturn,
-} from "./react";

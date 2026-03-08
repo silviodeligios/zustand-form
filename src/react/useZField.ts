@@ -42,33 +42,21 @@ export function useZField<TValues, TError = string>(
       : maybeOptions;
   useZFieldValidation(form, path as Path<TValues>, options);
 
+  const inputProps = form(form.field.select.inputProps(path), shallow);
   const fieldState = form(form.field.select.fieldState(path), shallow);
   const elRef = useRef<HTMLElement | null>(null);
-  const focused = form(form.field.select.focused(path));
 
   useEffect(() => {
-    if (focused && elRef.current) elRef.current.focus();
-  }, [focused]);
+    if (fieldState.focused && elRef.current) elRef.current.focus();
+  }, [fieldState.focused]);
 
-  const onChange = useCallback(
-    (v: unknown) => form.field.setValue(path, v),
-    [form, path],
-  );
-  const onBlur = useCallback(() => form.field.blur(path), [form, path]);
-  const onFocus = useCallback(() => form.field.focus(path), [form, path]);
   const ref = useCallback((el: HTMLElement | null) => {
     elRef.current = el;
   }, []);
 
   const field = useMemo(
-    () => ({
-      value: fieldState.value,
-      onChange,
-      onBlur,
-      onFocus,
-      ref,
-    }),
-    [fieldState.value, onChange, onBlur, onFocus, ref],
+    () => ({ ...inputProps, ref }),
+    [inputProps, ref],
   );
 
   return { field, fieldState };

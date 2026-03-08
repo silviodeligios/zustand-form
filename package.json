@@ -1,7 +1,7 @@
 {
   "name": "zform",
   "version": "0.1.0",
-  "description": "A React form hook powered by Zustand",
+  "description": "A form library powered by Zustand — framework-agnostic core with React bindings",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -17,9 +17,23 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./react": {
+      "import": {
+        "types": "./dist/react/index.d.ts",
+        "default": "./dist/react/index.js"
+      },
+      "require": {
+        "types": "./dist/react/index.d.cts",
+        "default": "./dist/react/index.cjs"
+      }
+    },
     "./src": {
       "import": "./src/index.ts",
       "types": "./src/index.ts"
+    },
+    "./src/react": {
+      "import": "./src/react/index.ts",
+      "types": "./src/react/index.ts"
     }
   },
   "files": [
@@ -50,6 +64,9 @@
     "zustand": ">=4.0.0"
   },
   "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
     "zod": {
       "optional": true
     }

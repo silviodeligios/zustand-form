@@ -1,12 +1,13 @@
-import type { FormState } from "../core/types";
-import type { FieldState, FieldNamespace } from "./types";
+import type { FormState, Dispatch } from "../core/types";
+import type { FieldState, InputProps, FieldNamespace } from "./types";
 import type { Path, PathValue } from "../types/paths";
+import * as A from "../core/actions";
 import { getIn } from "../core/utils";
 
 export function createFieldSelectors<
   TValues,
   TError = string,
->(): FieldNamespace<TValues, TError>["select"] {
+>(dispatch: Dispatch): FieldNamespace<TValues, TError>["select"] {
   type Sel<R> = (s: FormState<TValues, TError>) => R;
 
   function cached<R>(
@@ -30,6 +31,7 @@ export function createFieldSelectors<
     pending: new Map<string, Sel<boolean>>(),
     focused: new Map<string, Sel<boolean>>(),
     fieldState: new Map<string, Sel<FieldState<TError>>>(),
+    inputProps: new Map<string, Sel<InputProps>>(),
   };
 
   return {
@@ -47,14 +49,26 @@ export function createFieldSelectors<
       cached(cache.pending, path, () => (s) => s.pendingFields[path] ?? false),
     focused: (path: string): Sel<boolean> =>
       cached(cache.focused, path, () => (s) => s.focusedField === path),
-    fieldState: <P extends Path<TValues>>(path: P) =>
+    fieldState: (path: string): Sel<FieldState<TError>> =>
       cached(cache.fieldState, path, () => (s) => ({
-        value: getIn(s.values, path),
         dirty: s.dirtyFields[path] ?? false,
         touched: s.touchedFields[path] ?? false,
         error: s.errors[path],
         pending: s.pendingFields[path] ?? false,
         focused: s.focusedField === path,
-      })) as Sel<FieldState<TError, PathValue<TValues, P>>>,
+      })),
+    inputProps: <P extends Path<TValues>>(path: P) =>
+      cached(cache.inputProps, path, () => {
+        const onChange = (v: unknown) =>
+          dispatch({ type: A.SET_VALUE, path, value: v });
+        const onBlur = () => dispatch({ type: A.BLUR, path });
+        const onFocus = () => dispatch({ type: A.FOCUS, path });
+        return (s) => ({
+          value: getIn(s.values, path),
+          onChange,
+          onBlur,
+          onFocus,
+        });
+      }) as Sel<InputProps<PathValue<TValues, P>>>,
   };
 }

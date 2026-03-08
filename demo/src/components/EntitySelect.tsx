@@ -1,5 +1,5 @@
 import { memo, useCallback, useRef } from "react";
-import { useZField } from "zform";
+import { useZField } from "zform/react";
 import type { FormStore, Category } from "../formConfig";
 import { CATEGORIES } from "../formConfig";
 import FieldWrapper from "./FieldWrapper";

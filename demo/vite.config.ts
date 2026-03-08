@@ -9,6 +9,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "zform/react": resolve(__dirname, "../src/react/index.ts"),
       "zform": resolve(__dirname, "../src/index.ts"),
       "test": resolve(__dirname, "../test"),
     },

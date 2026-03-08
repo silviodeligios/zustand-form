@@ -36,6 +36,6 @@ export function createFieldNamespace<TValues, TError = string>(
       dispatch({ type: A.VALIDATE_FIELD, path, options: opts }),
     reset: (path, opts?) =>
       dispatch({ type: A.RESET_FIELD, path, options: opts }),
-    select: createFieldSelectors<TValues, TError>(),
+    select: createFieldSelectors<TValues, TError>(dispatch),
   };
 }

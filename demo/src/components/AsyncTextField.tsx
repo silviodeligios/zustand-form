@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { UseZFieldOptions } from "zform";
+import type { UseZFieldOptions } from "zform/react";
 import type { FormStore } from "../formConfig";
 import TextField from "./TextField";
 

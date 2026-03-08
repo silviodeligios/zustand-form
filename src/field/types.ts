@@ -1,13 +1,19 @@
 import type { FormState, DispatchOptions } from "../core/types";
 import type { Path, PathValue } from "../types/paths";
 
-export interface FieldState<TError = string, TValue = unknown> {
-  value: TValue;
+export interface FieldState<TError = string> {
   dirty: boolean;
   touched: boolean;
   error: TError | undefined;
   pending: boolean;
   focused: boolean;
+}
+
+export interface InputProps<TValue = unknown> {
+  value: TValue;
+  onChange(value: TValue): void;
+  onBlur(): void;
+  onFocus(): void;
 }
 
 type Selector<TValues, TError, R> = (s: FormState<TValues, TError>) => R;
@@ -60,9 +66,12 @@ export interface FieldNamespace<TValues, TError = string> {
     touched(path: FieldPath<TValues>): Selector<TValues, TError, boolean>;
     pending(path: FieldPath<TValues>): Selector<TValues, TError, boolean>;
     focused(path: FieldPath<TValues>): Selector<TValues, TError, boolean>;
-    fieldState<P extends Path<TValues>>(
+    fieldState(
+      path: FieldPath<TValues>,
+    ): Selector<TValues, TError, FieldState<TError>>;
+    inputProps<P extends Path<TValues>>(
       path: P,
-    ): Selector<TValues, TError, FieldState<TError, PathValue<TValues, P>>>;
-    fieldState(path: string): Selector<TValues, TError, FieldState<TError>>;
+    ): Selector<TValues, TError, InputProps<PathValue<TValues, P>>>;
+    inputProps(path: string): Selector<TValues, TError, InputProps>;
   };
 }
