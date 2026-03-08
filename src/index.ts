@@ -44,6 +44,7 @@ export type {
   FieldValidateMode,
   FormResolver,
 } from "./validation/types";
+export { standardSchemaResolver } from "./validation/standardSchemaResolver";
 
 // Selectors
-export type { FormSelectors } from "./selectors";
+export type { FormSelectors } from "./core/selectors";

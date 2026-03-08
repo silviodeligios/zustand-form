@@ -8,6 +8,7 @@ import NameExample from "./examples/NameExample";
 import EmailExample from "./examples/EmailExample";
 import CategoryExample from "./examples/CategoryExample";
 import NestedArrayExample from "./examples/NestedArrayExample";
+import MetaPlayground from "./examples/MetaPlayground";
 
 export default function App() {
   const form = useForm<FormValues>({
@@ -39,6 +40,7 @@ export default function App() {
           <EmailExample form={form} />
           <CategoryExample form={form} />
           <NestedArrayExample form={form} />
+          <MetaPlayground form={form} />
           <FormActions form={form} />
         </div>
       </form>

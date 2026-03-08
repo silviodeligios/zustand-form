@@ -1,5 +1,6 @@
-import type { FormResolver } from "zform";
+import { standardSchemaResolver } from "zform";
 import type { FormHook } from "zform/react";
+import { z } from "zod";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export { sleep };
@@ -30,11 +31,28 @@ export interface Section {
   items: SectionItem[];
 }
 
+export interface MetaTag {
+  label: string;
+  value: string;
+}
+
+export interface MetaSection {
+  heading: string;
+  tags: MetaTag[];
+}
+
+export interface Meta {
+  title: string;
+  enabled: boolean;
+  sections: MetaSection[];
+}
+
 export interface FormValues extends Record<string, unknown> {
   name: string;
   email: string;
   category: Category | null;
   sections: Section[];
+  meta: Meta;
 }
 
 export const defaultValues: FormValues = {
@@ -42,31 +60,44 @@ export const defaultValues: FormValues = {
   email: "",
   category: null,
   sections: [],
-};
-
-// ---------------------------------------------------------------------------
-// Resolver: FormResolver interface — validates all fields at once
-// ---------------------------------------------------------------------------
-
-export const resolver: FormResolver<FormValues> = {
-  validate(values: FormValues): Record<string, string | undefined> {
-    const errors: Record<string, string | undefined> = {};
-
-    if (!values.name?.trim()) errors.name = "Name required";
-    if (!values.category) errors.category = "Category required";
-
-    values.sections?.forEach((section, si) => {
-      if (!section.title?.trim())
-        errors[`sections.${si}.title`] = "Section title required";
-      section.items?.forEach((item, ii) => {
-        if (!item.label?.trim())
-          errors[`sections.${si}.items.${ii}.label`] = "Label required";
-      });
-    });
-
-    return errors;
+  meta: {
+    title: "",
+    enabled: false,
+    sections: [],
   },
 };
+
+// ---------------------------------------------------------------------------
+// Resolver: Zod schema via Standard Schema protocol
+// ---------------------------------------------------------------------------
+
+const formSchema = z.object({
+  name: z.string().min(1, "Name required"),
+  email: z.string(),
+  category: z.object({ id: z.string(), name: z.string(), color: z.string() }, { error: "Category required" }),
+  sections: z.array(
+    z.object({
+      title: z.string().min(1, "Section title required"),
+      items: z.array(
+        z.object({
+          label: z.string().min(1, "Label required"),
+        }),
+      ),
+    }),
+  ),
+  meta: z.object({
+    title: z.string(),
+    enabled: z.boolean(),
+    sections: z.array(
+      z.object({
+        heading: z.string(),
+        tags: z.array(z.object({ label: z.string(), value: z.string() })),
+      }),
+    ),
+  }),
+});
+
+export const resolver = standardSchemaResolver<FormValues>(formSchema);
 
 // ---------------------------------------------------------------------------
 // Field-level validators

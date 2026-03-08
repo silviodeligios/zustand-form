@@ -3,7 +3,7 @@ import type * as A from "./actions";
 import type { FieldNamespace } from "../field/types";
 import type { TreeNamespace } from "../tree/types";
 import type { FieldArrayNamespace } from "../fieldArray/types";
-import type { FormSelectors } from "../selectors";
+import type { FormSelectors } from "./selectors";
 import type { FieldValidatorEntry } from "../validation/types";
 
 // ---------------------------------------------------------------------------

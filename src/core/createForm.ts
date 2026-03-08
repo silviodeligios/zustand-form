@@ -6,7 +6,7 @@ import type {
   Enhancer,
   NamedEnhancer,
 } from "./types";
-import type { FormSelectors } from "../selectors";
+import type { FormSelectors } from "./selectors";
 import * as A from "./actions";
 import { createFieldNamespace } from "../field/createField";
 import { createFieldArrayNamespace } from "../fieldArray/createFieldArray";

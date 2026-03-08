@@ -1,6 +1,44 @@
 # zForm
 
-A React form library built on [Zustand](https://github.com/pmndrs/zustand). The form **is** a zustand vanilla store with a layered action pipeline — each concern (values, dirty, touched, validation, pending, submit) is a self-contained enhancer. A single `dispatch` runs every enhancer and commits the result in one atomic `setState`.
+A strongly-typed form library built on [Zustand](https://github.com/pmndrs/zustand) with atomic state updates, built-in async validation, and a pluggable enhancer pipeline. Written in TypeScript from the ground up — paths, values, and errors are fully inferred. Framework-agnostic core; React bindings as a separate entry point.
+
+## Why zForm
+
+I've used [React Hook Form](https://react-hook-form.com/) in every project I've worked on. It's a great library, but over time I kept running into the same walls — limitations that couldn't be worked around without fighting the internals. zForm is my answer to those pain points.
+
+**Multi-tick state updates.** In RHF, `setValue` and `trigger` are separate calls that run in different ticks. If you set a value and immediately read the errors, you get stale data. In zForm, a single `dispatch` runs every enhancer (values, dirty, touched, validation) and commits everything with one `setState`. Value, dirty flags, and errors are all consistent in the same tick.
+
+**Validation that doesn't keep up.** RHF requires an explicit `trigger()` or waits until submit to validate. Sync validation and schema validation in zForm are enhancers in the same pipeline as `setValue` — the error is already in the committed state when subscribers are notified.
+
+**No built-in async validation.** With RHF you have to wire up `setError`/`clearErrors` manually, handle debouncing yourself, and hope stale async results don't overwrite newer errors. zForm has first-class async validation with configurable debounce, version-based stale cancellation, and automatic cancel when a sync error appears while an async check is still in flight.
+
+**Opaque internals.** RHF keeps state in refs and wraps `formState` in a proxy. Debugging means guessing. zForm's form is a plain Zustand store — `getState()`, `subscribe()`, cached selectors, and full devtools support. Every action shows up in the Chrome Zustand devtools panel with a name like `SET_VALUE:email`.
+
+**No real extensibility.** RHF offers resolvers for schema validation, but there's no way to inject custom logic into the state update pipeline. zForm's enhancer pipeline is fully pluggable — you can insert, replace, or reorder enhancers, and your custom logic runs in the same atomic tick as everything else.
+
+**Weak tree operations.** In RHF you can read values by path, but there's no way to query a subtree for errors, dirty fields, or pending validations. zForm provides a `tree` namespace: `form.tree.isDirty("items")`, `form.tree.isValid("items")`, `form.tree.getErrors("items")`, `form.tree.reset("items")` — all operating on a path and every descendant beneath it.
+
+**Array reindexing without session tracking.** Both libraries reindex path-keyed records (errors, touched) when array elements move. But zForm also tracks in-flight async validation sessions — if an element moves from index 2 to index 1 while its async validator is running, the result lands at the correct new path.
+
+| | React Hook Form | zForm |
+|---|---|---|
+| State updates | `setValue` + `trigger` in separate ticks | Single dispatch, one `setState`, all state consistent |
+| Sync validation | Explicit `trigger()` or on submit | Same pipeline as `setValue`, errors in same commit |
+| Async validation | Manual `setError`/`clearErrors` | Built-in: debounce, stale cancellation, auto-cancel on sync error |
+| Internal state | Refs + proxy `formState` | Zustand store: `getState()`, `subscribe()`, devtools |
+| Extensibility | Resolvers only | Pluggable enhancer pipeline |
+| Tree operations | `getValues(path)` | `isDirty`, `isValid`, `getErrors`, `reset`, `validate` on any subtree |
+| Array reindex | Errors/touched reindexed | + async session path tracking |
+| Framework | React only | Vanilla core, React hooks separate |
+
+## Try the demo
+
+```bash
+git clone https://github.com/user/zustand-form.git && cd zustand-form
+npm install
+npm run demo
+# opens http://localhost:5173
+```
 
 ## Architecture
 
@@ -23,7 +61,7 @@ When an action is dispatched, every enhancer runs in order against the same `pre
 ## Quick start
 
 ```tsx
-import { useForm, useField, FormProvider } from "zform";
+import { useForm, useField, FormProvider } from "zform/react";
 import { devtools } from "zustand/middleware";
 
 function App() {
@@ -87,7 +125,9 @@ function NameField() {
 }
 ```
 
-`fieldState` includes: `value`, `dirty`, `touched`, `error`, `pending`, `focused`.
+`field` includes: `value`, `onChange`, `onBlur`, `onFocus`, `ref` — spread-ready for inputs.
+
+`fieldState` includes: `dirty`, `touched`, `error`, `pending`, `focused`.
 
 When `form.field.focus(path)` is called programmatically, `useField` detects the change and calls `el.focus()` on the bound ref automatically.
 
@@ -131,6 +171,28 @@ When a sync or schema error appears while an async validation is already in-flig
 | `asyncValidateMode` | `"onChange"` | When async runs: `"onChange"` or `"onBlur"` |
 | `debounce` | — | Debounce delay (ms) before async fires |
 
+## `useFieldValidation` — validation without binding
+
+Registers validators for a field without returning `field` or `fieldState`. Useful when you have a custom component that manages its own rendering but still needs to participate in the validation pipeline.
+
+```tsx
+// With explicit form
+useFieldValidation(form, "email", {
+  validate: (v) => (!String(v).includes("@") ? "Must contain @" : undefined),
+  asyncValidate: (v) => checkEmailAvailability(v),
+  debounce: 500,
+});
+
+// From context
+useFieldValidation("email", {
+  validate: (v) => (!String(v).includes("@") ? "Must contain @" : undefined),
+  asyncValidate: (v) => checkEmailAvailability(v),
+  debounce: 500,
+});
+```
+
+Accepts the same options as `useField` (`validate`, `validateMode`, `asyncValidate`, `asyncValidateMode`, `debounce`). Validators are registered on mount and cleaned up on unmount.
+
 ## Schema validation (resolver)
 
 A `FormResolver` validates the entire form at once, returning a record of errors keyed by path. It runs after per-field validators — if a field already has an error from its own validator, the resolver's error for that field is skipped.
@@ -147,6 +209,33 @@ const resolver: FormResolver<FormValues> = {
 
 const form = useForm({ defaultValues, resolver, resolverMode: "onChange" });
 ```
+
+### `standardSchemaResolver` — use any validation library
+
+zForm ships with a resolver that works with any library implementing the [Standard Schema](https://github.com/standard-schema/standard-schema) protocol — Zod, Valibot, ArkType, and others. No adapter per library needed.
+
+```ts
+import { standardSchemaResolver } from "zform";
+import { z } from "zod";
+
+const schema = z.object({
+  name: z.string().min(1, "Name required"),
+  email: z.string().email("Invalid email"),
+  items: z.array(
+    z.object({
+      title: z.string().min(1, "Title required"),
+    }),
+  ),
+});
+
+const form = useForm({
+  defaultValues,
+  resolver: standardSchemaResolver(schema),
+  resolverMode: "onChange",
+});
+```
+
+The resolver reads the `~standard` interface at runtime, so it has **zero dependency** on any specific validation library. Nested path errors (e.g. `items.0.title`) are mapped to dot-notation automatically.
 
 ## Arrays
 
@@ -238,11 +327,28 @@ form.field.reset("email");
 
 // Cached selectors for form(selector)
 const fieldState = form(form.field.select.fieldState("email"), shallow);
+const inputProps = form(form.field.select.inputProps("email"), shallow);
 const value = form(form.field.select.value("email"));
 const error = form(form.field.select.error("email"));
 const dirty = form(form.field.select.dirty("email"));
 const focused = form(form.field.select.focused("email"));
 ```
+
+### `inputProps` selector — spread-ready bindings without hooks
+
+For cases where you want to bind an input without the full `useField` hook (no validation registration, no ref-based auto-focus), use the `inputProps` selector directly:
+
+```tsx
+import { shallow } from "zustand/shallow";
+
+const props = form(form.field.select.inputProps("email"), shallow);
+<input {...props} />
+<MyCustomInput {...props} />
+```
+
+Returns `{ value, onChange, onBlur, onFocus }` where `value` is reactive and the action callbacks are **stable references** (created once per path). With `shallow` equality, the component only re-renders when `value` changes.
+
+This selector lives on the vanilla core — it works from any framework, not just React.
 
 ## `form.tree.method(path?)` — tree namespace
 
@@ -367,9 +473,20 @@ form.fieldArray.append("items", { title: "" }, {
 
 Layer names match those in the default pipeline: `values`, `touched`, `dirty`, `validation`, `schemaValidation`, `asyncValidation`, `submit`.
 
+## Separate entry points
+
+The core is framework-agnostic. React bindings are a separate import:
+
+```ts
+import { createForm } from "zform";                // vanilla core — no React dependency
+import { useForm, useField } from "zform/react";   // React hooks
+```
+
+This means you can use `zform` in Node scripts, server actions, tests, or future Vue/Solid/Angular adapters without pulling in React.
+
 ## Usage outside React
 
-`createForm` returns a vanilla zustand store — no React required. Use it in Node scripts, server actions, tests, or any framework.
+`createForm` returns a vanilla zustand store — no React required.
 
 ```ts
 import { createForm } from "zform";
@@ -391,54 +508,6 @@ form.subscribe((state) => console.log(state.values));
 const { values, errors } = form.getState();
 ```
 
-## Project structure
-
-```
-src/
-├── core/
-│   ├── actions.ts            # Action type constants
-│   ├── arrayReindex.ts       # Reindex path-keyed records after array ops
-│   ├── createForm.ts         # Form factory, pipeline assembly, dispatch
-│   ├── types.ts              # FormState, ActionContext, Enhancer, NamedEnhancer, Form
-│   └── utils.ts              # getIn, setIn, isEqual, treeMatcher
-├── layers/
-│   ├── values.ts             # Sets values in state
-│   ├── touched.ts            # Tracks touched fields
-│   ├── dirty.ts              # Tracks dirty fields (vs defaultValues)
-│   ├── validation.ts         # Per-field sync validation
-│   ├── schemaValidation.ts   # Form-level schema validation (FormResolver)
-│   ├── asyncValidation/
-│   │   ├── index.ts          # Async validation enhancer
-│   │   └── utils.ts          # runAsync, triggerArrayAsync helpers
-│   ├── submit.ts             # Submit lifecycle
-│   └── index.ts              # Re-exports all layer enhancers
-├── field/
-│   ├── createField.ts        # FieldNamespace factory
-│   ├── selectors.ts          # Cached field selectors
-│   └── types.ts              # FieldNamespace, FieldState
-├── fieldArray/
-│   ├── createFieldArray.ts   # FieldArrayNamespace factory
-│   └── types.ts              # FieldArrayNamespace, FieldArrayItem
-├── tree/
-│   ├── createTree.ts         # TreeNamespace factory
-│   ├── selectors.ts          # Cached tree selectors
-│   └── types.ts              # TreeNamespace
-├── validation/
-│   ├── registry.ts           # FieldRegistry for per-field validators
-│   └── types.ts              # FieldValidatorEntry, FormResolver
-├── react/
-│   ├── context.ts            # FormProvider / useFormContext
-│   ├── useForm.ts           # useForm hook
-│   ├── useField.ts          # useField hook
-│   ├── useFieldArray.ts     # useFieldArray hook
-│   ├── useFieldValidation.ts
-│   ├── types.ts              # React-specific types
-│   └── index.ts
-├── types/
-│   └── paths.ts              # Path, PathValue, ArrayElement type utils
-├── selectors.ts              # FormSelectors type
-└── index.ts                  # Public API exports
-```
 
 ## License
 

@@ -1,4 +1,4 @@
-import type { FormState } from "./core/types";
+import type { FormState } from "./types";
 
 export interface FormSelectors<TValues, TError = string> {
   values: (s: FormState<TValues, TError>) => TValues;
