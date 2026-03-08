@@ -1,25 +1,25 @@
-import type { StoreApi } from 'zustand/vanilla'
-import type * as A from './actions'
-import type { FieldNamespace } from '../field/types'
-import type { TreeNamespace } from '../tree/types'
-import type { FieldArrayNamespace } from '../fieldArray/types'
-import type { FormSelectors } from '../selectors'
-import type { FieldValidatorEntry } from '../validation/types'
+import type { StoreApi } from "zustand/vanilla";
+import type * as A from "./actions";
+import type { FieldNamespace } from "../field/types";
+import type { TreeNamespace } from "../tree/types";
+import type { FieldArrayNamespace } from "../fieldArray/types";
+import type { FormSelectors } from "../selectors";
+import type { FieldValidatorEntry } from "../validation/types";
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
-export type FormState<TValues> = {
-  values: TValues
-  dirtyFields: Record<string, boolean>
-  touchedFields: Record<string, boolean>
-  errors: Record<string, string | undefined>
-  pendingFields: Record<string, boolean>
-  focusedField: string | null
-  isSubmitting: boolean
-  submitCount: number
-  isSubmitSuccessful: boolean
+export interface FormState<TValues> {
+  values: TValues;
+  dirtyFields: Record<string, boolean>;
+  touchedFields: Record<string, boolean>;
+  errors: Record<string, string | undefined>;
+  pendingFields: Record<string, boolean>;
+  focusedField: string | null;
+  isSubmitting: boolean;
+  submitCount: number;
+  isSubmitSuccessful: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -27,41 +27,58 @@ export type FormState<TValues> = {
 // ---------------------------------------------------------------------------
 
 export interface DispatchOptions {
-  disableLayers?: string[]
+  disableLayers?: string[];
 }
 
 export type ActionType =
-  | typeof A.SET_VALUE | typeof A.SET_ERROR | typeof A.CLEAR_ERROR
-  | typeof A.SET_TOUCHED | typeof A.SET_DIRTY | typeof A.FOCUS | typeof A.BLUR
-  | typeof A.VALIDATE_FIELD | typeof A.RESET_FIELD
-  | typeof A.PENDING_START | typeof A.PENDING_END | typeof A.ASYNC_RESOLVE
-  | typeof A.CLEAR_ERRORS_BRANCH | typeof A.RESET_BRANCH | typeof A.VALIDATE_BRANCH
-  | typeof A.ARRAY_APPEND | typeof A.ARRAY_REMOVE | typeof A.ARRAY_INSERT | typeof A.ARRAY_MOVE | typeof A.ARRAY_SWAP
-  | typeof A.RESET_FORM | typeof A.SUBMIT | typeof A.SUBMIT_SUCCESS | typeof A.SUBMIT_FAILURE
+  | typeof A.SET_VALUE
+  | typeof A.SET_ERROR
+  | typeof A.CLEAR_ERROR
+  | typeof A.SET_TOUCHED
+  | typeof A.SET_DIRTY
+  | typeof A.FOCUS
+  | typeof A.BLUR
+  | typeof A.VALIDATE_FIELD
+  | typeof A.RESET_FIELD
+  | typeof A.PENDING_START
+  | typeof A.PENDING_END
+  | typeof A.ASYNC_RESOLVE
+  | typeof A.CLEAR_ERRORS_BRANCH
+  | typeof A.RESET_BRANCH
+  | typeof A.VALIDATE_BRANCH
+  | typeof A.ARRAY_APPEND
+  | typeof A.ARRAY_REMOVE
+  | typeof A.ARRAY_INSERT
+  | typeof A.ARRAY_MOVE
+  | typeof A.ARRAY_SWAP
+  | typeof A.RESET_FORM
+  | typeof A.SUBMIT
+  | typeof A.SUBMIT_SUCCESS
+  | typeof A.SUBMIT_FAILURE;
 
 export interface ActionContext {
-  type: ActionType
-  path?: string
-  value?: unknown
-  index?: number
-  from?: number
-  to?: number
-  options?: DispatchOptions
+  type: ActionType;
+  path?: string | undefined;
+  value?: unknown;
+  index?: number | undefined;
+  from?: number | undefined;
+  to?: number | undefined;
+  options?: DispatchOptions | undefined;
 }
 
-export type Dispatch = (ctx: ActionContext) => void
+export type Dispatch = (ctx: ActionContext) => void;
 
 /** Enhancer: receives context, previous state, accumulated draft; returns enriched draft */
 export type Enhancer<TValues> = (
   ctx: ActionContext,
   prev: FormState<TValues>,
   draft: Partial<FormState<TValues>>,
-) => Partial<FormState<TValues>>
+) => Partial<FormState<TValues>>;
 
 /** Named enhancer: wraps an Enhancer with a string tag for pipeline manipulation */
 export interface NamedEnhancer<TValues> {
-  name: string
-  enhancer: Enhancer<TValues>
+  name: string;
+  enhancer: Enhancer<TValues>;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,23 +86,23 @@ export interface NamedEnhancer<TValues> {
 // ---------------------------------------------------------------------------
 
 export interface Form<TValues> {
-  getState: StoreApi<FormState<TValues>>['getState']
-  setState: StoreApi<FormState<TValues>>['setState']
-  subscribe: StoreApi<FormState<TValues>>['subscribe']
-  getInitialState: StoreApi<FormState<TValues>>['getInitialState']
-  field: FieldNamespace<TValues>
-  fieldArray: FieldArrayNamespace<TValues>
-  tree: TreeNamespace<TValues>
-  getValues(): TValues
-  reset(nextValues?: Partial<TValues>, options?: DispatchOptions): void
+  getState: StoreApi<FormState<TValues>>["getState"];
+  setState: StoreApi<FormState<TValues>>["setState"];
+  subscribe: StoreApi<FormState<TValues>>["subscribe"];
+  getInitialState: StoreApi<FormState<TValues>>["getInitialState"];
+  field: FieldNamespace<TValues>;
+  fieldArray: FieldArrayNamespace<TValues>;
+  tree: TreeNamespace<TValues>;
+  getValues(): TValues;
+  reset(nextValues?: Partial<TValues>, options?: DispatchOptions): void;
   handleSubmit(
     onValid: (values: TValues) => void | Promise<void>,
     onInvalid?: (errors: Record<string, string>) => void,
-  ): (e?: Event) => void
-  isSubmitting(): boolean
-  submitCount(): number
-  isSubmitSuccessful(): boolean
-  registerField(path: string, entry: FieldValidatorEntry): void
-  unregisterField(path: string): void
-  select: FormSelectors<TValues>
+  ): (e?: Event) => void;
+  isSubmitting(): boolean;
+  submitCount(): number;
+  isSubmitSuccessful(): boolean;
+  registerField(path: string, entry: FieldValidatorEntry): void;
+  unregisterField(path: string): void;
+  select: FormSelectors<TValues>;
 }

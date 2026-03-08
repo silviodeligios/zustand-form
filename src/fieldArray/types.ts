@@ -1,22 +1,32 @@
-import type { FormState, DispatchOptions } from '../core/types'
+import type { FormState, DispatchOptions } from "../core/types";
 
 export interface FieldArrayItem {
-  id: string
-  index: number
+  id: string;
+  index: number;
 }
 
-type Selector<TValues, R> = (s: FormState<TValues>) => R
+type Selector<TValues, R> = (s: FormState<TValues>) => R;
 
 export interface FieldArrayNamespace<TValues> {
-  getLength(path: string): number
-  setValue(path: string, arr: unknown[], options?: DispatchOptions): void
-  append(path: string, value: unknown, options?: DispatchOptions): void
-  prepend(path: string, value: unknown, options?: DispatchOptions): void
-  remove(path: string, index: number, options?: DispatchOptions): void
-  insert(path: string, index: number, value: unknown, options?: DispatchOptions): void
-  move(path: string, from: number, to: number, options?: DispatchOptions): void
-  swap(path: string, indexA: number, indexB: number, options?: DispatchOptions): void
+  getLength(path: string): number;
+  setValue(path: string, arr: unknown[], options?: DispatchOptions): void;
+  append(path: string, value: unknown, options?: DispatchOptions): void;
+  prepend(path: string, value: unknown, options?: DispatchOptions): void;
+  remove(path: string, index: number, options?: DispatchOptions): void;
+  insert(
+    path: string,
+    index: number,
+    value: unknown,
+    options?: DispatchOptions,
+  ): void;
+  move(path: string, from: number, to: number, options?: DispatchOptions): void;
+  swap(
+    path: string,
+    indexA: number,
+    indexB: number,
+    options?: DispatchOptions,
+  ): void;
   select: {
-    length(path: string): Selector<TValues, number>
-  }
+    length(path: string): Selector<TValues, number>;
+  };
 }

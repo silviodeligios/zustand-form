@@ -1,79 +1,124 @@
-import { createStore } from 'zustand/vanilla'
-import type { FormState, Form, ActionContext, Enhancer, NamedEnhancer } from './types'
-import type { FormSelectors } from '../selectors'
-import * as A from './actions'
-import { createFieldNamespace } from '../field/createField'
-import { createFieldArrayNamespace } from '../fieldArray/createFieldArray'
-import { createTreeNamespace } from '../tree/createTree'
-import type { FormResolver, FieldValidateMode } from '../validation/types'
-import { createFieldRegistry } from '../validation/registry'
-import { valuesEnhancer } from '../layers/values'
-import { touchedEnhancer } from '../layers/touched'
-import { dirtyEnhancer } from '../layers/dirty'
-import { validationEnhancer } from '../layers/validation'
-import { pendingEnhancer } from '../layers/pending'
-import { schemaValidationEnhancer } from '../layers/schemaValidation'
-import { asyncValidationEnhancer } from '../layers/asyncValidation'
-import { submitEnhancer } from '../layers/submit'
+import { createStore } from "zustand/vanilla";
+import type {
+  FormState,
+  Form,
+  ActionContext,
+  Enhancer,
+  NamedEnhancer,
+} from "./types";
+import type { FormSelectors } from "../selectors";
+import * as A from "./actions";
+import { createFieldNamespace } from "../field/createField";
+import { createFieldArrayNamespace } from "../fieldArray/createFieldArray";
+import { createTreeNamespace } from "../tree/createTree";
+import type { FormResolver, FieldValidateMode } from "../validation/types";
+import { createFieldRegistry } from "../validation/registry";
+import { valuesEnhancer } from "../layers/values";
+import { touchedEnhancer } from "../layers/touched";
+import { dirtyEnhancer } from "../layers/dirty";
+import { validationEnhancer } from "../layers/validation";
+import { pendingEnhancer } from "../layers/pending";
+import { schemaValidationEnhancer } from "../layers/schemaValidation";
+import { asyncValidationEnhancer } from "../layers/asyncValidation";
+import { submitEnhancer } from "../layers/submit";
 
 export interface FormConfig<TValues> {
-  initialState: Partial<FormState<TValues>>
-  resolver?: FormResolver<TValues>
-  resolverMode?: FieldValidateMode
-  enhancers?: (defaults: NamedEnhancer<TValues>[]) => (NamedEnhancer<TValues> | Enhancer<TValues>)[]
+  initialState: Partial<FormState<TValues>>;
+  resolver?: FormResolver<TValues> | undefined;
+  resolverMode?: FieldValidateMode | undefined;
+  enhancers?:
+    | ((
+        defaults: NamedEnhancer<TValues>[],
+      ) => (NamedEnhancer<TValues> | Enhancer<TValues>)[])
+    | undefined;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  middleware?: (initializer: () => FormState<TValues>) => any
+  middleware?: ((initializer: () => FormState<TValues>) => any) | undefined;
 }
 
-export function createForm<TValues>(config: FormConfig<TValues>): Form<TValues> {
+export function createForm<TValues>(
+  config: FormConfig<TValues>,
+): Form<TValues> {
   const initialState: FormState<TValues> = {
-    values: {} as TValues, dirtyFields: {}, touchedFields: {},
-    errors: {}, pendingFields: {}, focusedField: null,
-    isSubmitting: false, submitCount: 0, isSubmitSuccessful: false,
+    values: {} as TValues,
+    dirtyFields: {},
+    touchedFields: {},
+    errors: {},
+    pendingFields: {},
+    focusedField: null,
+    isSubmitting: false,
+    submitCount: 0,
+    isSubmitSuccessful: false,
     ...config.initialState,
-  }
-  const defaultValues = initialState.values
+  };
+  const defaultValues = initialState.values;
 
-  const initializer = () => initialState
-  const store = createStore<FormState<TValues>>()(config.middleware ? config.middleware(initializer) : initializer)
-  const registry = createFieldRegistry(dispatch)
+  const initializer = () => initialState;
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- middleware returns opaque zustand enhancer
+  const store = createStore<FormState<TValues>>()(
+    config.middleware ? config.middleware(initializer) : initializer,
+  );
+  const registry = createFieldRegistry(dispatch);
 
   const defaultEnhancers: NamedEnhancer<TValues>[] = [
-    { name: 'values',          enhancer: valuesEnhancer(defaultValues) },
-    { name: 'touched',         enhancer: touchedEnhancer() },
-    { name: 'dirty',           enhancer: dirtyEnhancer(defaultValues) },
-    { name: 'validation',      enhancer: validationEnhancer(registry) },
+    { name: "values", enhancer: valuesEnhancer(defaultValues) },
+    { name: "touched", enhancer: touchedEnhancer() },
+    { name: "dirty", enhancer: dirtyEnhancer(defaultValues) },
+    { name: "validation", enhancer: validationEnhancer(registry) },
     ...(config.resolver
-      ? [{ name: 'schemaValidation', enhancer: schemaValidationEnhancer<TValues>(config.resolver, config.resolverMode) }]
+      ? [
+          {
+            name: "schemaValidation",
+            enhancer: schemaValidationEnhancer<TValues>(
+              config.resolver,
+              config.resolverMode,
+            ),
+          },
+        ]
       : []),
-    { name: 'asyncValidation', enhancer: asyncValidationEnhancer(registry, dispatch) },
-    { name: 'pending',         enhancer: pendingEnhancer() },
-    { name: 'submit',          enhancer: submitEnhancer() },
-  ]
+    {
+      name: "asyncValidation",
+      enhancer: asyncValidationEnhancer(registry, dispatch),
+    },
+    { name: "pending", enhancer: pendingEnhancer() },
+    { name: "submit", enhancer: submitEnhancer() },
+  ];
 
   const enhancers: Enhancer<TValues>[] = config.enhancers
-    ? config.enhancers(defaultEnhancers).map(e => typeof e === 'function' ? e : e.enhancer)
-    : defaultEnhancers.map(e => e.enhancer)
+    ? config
+        .enhancers(defaultEnhancers)
+        .map((e) => (typeof e === "function" ? e : e.enhancer))
+    : defaultEnhancers.map((e) => e.enhancer);
 
   function dispatch(ctx: ActionContext): void {
-    const prev = store.getState()
-    let draft: Partial<FormState<TValues>> = {}
-    for (const e of enhancers) draft = e(ctx, prev, draft)
+    const prev = store.getState();
+    let draft: Partial<FormState<TValues>> = {};
+    for (const e of enhancers) draft = e(ctx, prev, draft);
     if (Object.keys(draft).length > 0) {
-      const action = ctx.path ? `${ctx.type}:${ctx.path}` : ctx.type
-      ;(store.setState as Function)((s: FormState<TValues>) => ({ ...s, ...draft }), false, action)
+      const action = ctx.path ? `${ctx.type}:${ctx.path}` : ctx.type;
+      // zustand setState accepts 3-arg form for devtools
+      (
+        store.setState as (
+          fn: (s: FormState<TValues>) => FormState<TValues>,
+          replace: boolean,
+          action: string,
+        ) => void
+      )((s) => ({ ...s, ...draft }), false, action);
     }
   }
 
   const select: FormSelectors<TValues> = {
-    values: (s) => s.values, isSubmitting: (s) => s.isSubmitting,
-    submitCount: (s) => s.submitCount, isSubmitSuccessful: (s) => s.isSubmitSuccessful,
+    values: (s) => s.values,
+    isSubmitting: (s) => s.isSubmitting,
+    submitCount: (s) => s.submitCount,
+    isSubmitSuccessful: (s) => s.isSubmitSuccessful,
     focusedField: (s) => s.focusedField,
-  }
+  };
 
   return {
-    getState: store.getState, setState: store.setState,
-    subscribe: store.subscribe, getInitialState: store.getInitialState,
+    getState: store.getState,
+    setState: store.setState,
+    subscribe: store.subscribe,
+    getInitialState: store.getInitialState,
     field: createFieldNamespace(store, dispatch),
     fieldArray: createFieldArrayNamespace(store, dispatch),
     tree: createTreeNamespace(store, dispatch),
@@ -81,33 +126,39 @@ export function createForm<TValues>(config: FormConfig<TValues>): Form<TValues> 
     isSubmitting: () => store.getState().isSubmitting,
     submitCount: () => store.getState().submitCount,
     isSubmitSuccessful: () => store.getState().isSubmitSuccessful,
-    reset: (nextValues?, opts?) => dispatch({ type: A.RESET_FORM, value: nextValues, options: opts }),
+    reset: (nextValues?, opts?) =>
+      dispatch({ type: A.RESET_FORM, value: nextValues, options: opts }),
     handleSubmit: (onValid, onInvalid?) => (e?: Event) => {
-      e?.preventDefault?.()
-      dispatch({ type: A.SUBMIT })
-      const state = store.getState()
-      const errorKeys = Object.keys(state.errors).filter(k => state.errors[k] !== undefined)
+      e?.preventDefault();
+      dispatch({ type: A.SUBMIT });
+      const state = store.getState();
+      const errorKeys = Object.keys(state.errors).filter(
+        (k) => state.errors[k] !== undefined,
+      );
       if (errorKeys.length > 0) {
-        dispatch({ type: A.SUBMIT_FAILURE })
+        dispatch({ type: A.SUBMIT_FAILURE });
         if (onInvalid) {
-          const errs: Record<string, string> = {}
-          for (const k of errorKeys) errs[k] = state.errors[k]!
-          onInvalid(errs)
+          const errs: Record<string, string> = {};
+          for (const k of errorKeys) errs[k] = state.errors[k]!;
+          onInvalid(errs);
         }
-        return
+        return;
       }
-      const result = onValid(state.values)
-      if (result && typeof (result as Promise<void>).then === 'function') {
-        (result as Promise<void>).then(
+      const result = onValid(state.values);
+      if (
+        result &&
+        typeof (result as unknown as Promise<void>).then === "function"
+      ) {
+        (result as unknown as Promise<void>).then(
           () => dispatch({ type: A.SUBMIT_SUCCESS }),
           () => dispatch({ type: A.SUBMIT_FAILURE }),
-        )
+        );
       } else {
-        dispatch({ type: A.SUBMIT_SUCCESS })
+        dispatch({ type: A.SUBMIT_SUCCESS });
       }
     },
     registerField: (path, entry) => registry.register(path, entry),
     unregisterField: (path) => registry.unregister(path),
     select,
-  }
+  };
 }
