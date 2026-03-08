@@ -140,10 +140,10 @@ export function useZFieldArray<TValues, TError = string>(
     [fa, path, bump],
   );
 
-  const setValue = useCallback(
+  const replace = useCallback(
     (arr: unknown[], opts?: DispatchOptions) => {
       keysRef.current = arr.map(() => generateKey());
-      fa.setValue(path, arr, opts);
+      fa.replace(path, arr, opts);
       bump();
     },
     [fa, path, bump],
@@ -165,6 +165,6 @@ export function useZFieldArray<TValues, TError = string>(
     insert,
     move,
     swap,
-    setValue,
+    replace,
   };
 }

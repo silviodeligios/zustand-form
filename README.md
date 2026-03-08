@@ -12,7 +12,7 @@ API (vanilla, framework-agnostic)
   form.field.method(path) · form.tree.method(path?) · form-level methods
 
 Action pipeline (dispatch -> enhancers -> setState)
-  values · touched · dirty · validation · schemaValidation · asyncValidation · pending · submit
+  values · touched · dirty · validation · schemaValidation · asyncValidation · submit
 
 zustand vanilla store
   getState · subscribe · setState · devtools
@@ -116,7 +116,7 @@ const { field, fieldState } = useZField("email", {
 The pipeline runs in this order: **field-level sync → schema resolver → async**. Priority flows top-down:
 
 1. **Field sync** (`validate`) — runs first. If it returns an error, schema and async are both skipped for this field.
-2. **Schema** (`resolver.validateField`) — runs if field sync passed. If it returns an error, async is skipped.
+2. **Schema** (`resolver.validate`) — runs if field sync passed. If it returns an error, async is skipped.
 3. **Async** (`asyncValidate`) — runs only if both sync and schema passed, and the field is dirty. Sets `pending: true` while in-flight.
 
 When a sync or schema error appears while an async validation is already in-flight, the async is **automatically cancelled**: the pending state is cleared immediately, and the stale async result is discarded when it resolves. This prevents async results from overwriting sync errors.
@@ -125,22 +125,23 @@ When a sync or schema error appears while an async validation is already in-flig
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `validate` | — | Sync validator: `(value) => string \| undefined` |
+| `validate` | — | Sync validator: `(value) => TError \| undefined` |
 | `validateMode` | `"onChange"` | When sync runs: `"onChange"` or `"onBlur"` |
-| `asyncValidate` | — | Async validator: `(value) => Promise<string \| undefined>` |
+| `asyncValidate` | — | Async validator: `(value) => Promise<TError \| undefined>` |
 | `asyncValidateMode` | `"onChange"` | When async runs: `"onChange"` or `"onBlur"` |
 | `debounce` | — | Debounce delay (ms) before async fires |
 
 ## Schema validation (resolver)
 
-A `FormResolver` validates one field at a time, running after per-field validators. If a field already has an error from its own validator, the resolver is skipped for that field.
+A `FormResolver` validates the entire form at once, returning a record of errors keyed by path. It runs after per-field validators — if a field already has an error from its own validator, the resolver's error for that field is skipped.
 
 ```ts
 const resolver: FormResolver<FormValues> = {
-  validateField(path, values) {
-    if (path === "name" && !values.name?.trim()) return "Name required";
-    if (path === "email" && !values.email?.trim()) return "Email required";
-    return undefined;
+  validate(values) {
+    const errors: Record<string, string | undefined> = {};
+    if (!values.name?.trim()) errors.name = "Name required";
+    if (!values.email?.trim()) errors.email = "Email required";
+    return errors;
   },
 };
 
@@ -167,7 +168,9 @@ const { fields, append, remove, move } = useZFieldArray("sections");
 ))}
 ```
 
-Available methods: `append`, `prepend`, `remove`, `insert`, `move`, `swap`, `setValue`.
+Available methods: `append`, `prepend`, `remove`, `insert`, `move`, `swap`, `replace`.
+
+`replace` replaces the entire array value, clears all child state (dirty, touched, errors, pending), and re-validates only the array path itself (sync + schema + async). Children are not individually validated.
 
 You can also call array methods directly on the namespace:
 
@@ -175,6 +178,7 @@ You can also call array methods directly on the namespace:
 form.fieldArray.append("sections", { title: "" });
 form.fieldArray.remove("sections", 2);
 form.fieldArray.move("sections", 0, 3);
+form.fieldArray.replace("sections", [{ title: "New" }]);
 ```
 
 ## `FormProvider` + `useFormContext`
@@ -222,7 +226,7 @@ Operates on the exact path. No recursion on children. Selectors are cached per p
 form.field.getValue("email");   // current value
 form.field.isDirty("email");    // boolean
 form.field.isTouched("email");  // boolean
-form.field.getError("email");   // string | undefined
+form.field.getError("email");   // TError | undefined
 form.field.isPending("email");  // boolean
 
 // Setters (dispatch actions)
@@ -246,10 +250,18 @@ Operates on the path and all its descendants. Without arguments, operates on the
 
 ```ts
 // Subtree queries
-form.tree.isDirty("items");      // any dirty field under items.*
-form.tree.isValid("items");      // no errors under items.*
-form.tree.getErrors("items");    // all errors under items.*
+form.tree.isDirty("items");          // any dirty field under items.*
+form.tree.isTouched("items");       // any touched field under items.*
+form.tree.isPending("items");       // any pending field under items.*
+form.tree.isValid("items");          // no errors under items.*
+form.tree.getErrors("items");        // all errors under items.*
+form.tree.getDirtyFields("items");   // paths of dirty fields
+form.tree.getTouchedFields("items"); // paths of touched fields
+
+// Subtree mutations
 form.tree.clearErrors("items");  // remove all errors under items.*
+form.tree.reset("items");        // reset values, dirty, touched, errors for subtree
+form.tree.validate("items");     // re-run sync + schema + async validation for subtree
 
 // Whole-form queries (no path)
 form.tree.isDirty();
@@ -288,11 +300,11 @@ const form = useZForm({
 ## Store state
 
 ```ts
-type FormState<TValues> = {
+type FormState<TValues, TError = string> = {
   values: TValues
   dirtyFields: Record<string, boolean>
   touchedFields: Record<string, boolean>
-  errors: Record<string, string | undefined>
+  errors: Record<string, TError | undefined>
   pendingFields: Record<string, boolean>
   focusedField: string | null
   isSubmitting: boolean
@@ -308,23 +320,22 @@ All path-keyed records use dot-notation (`"items.0.name"`).
 Each enhancer is a pure function:
 
 ```ts
-type Enhancer<TValues> = (
+type Enhancer<TValues, TError = string> = (
   ctx: ActionContext,
-  prev: FormState<TValues>,
-  draft: Partial<FormState<TValues>>,
-) => Partial<FormState<TValues>>
+  prev: FormState<TValues, TError>,
+  draft: Partial<FormState<TValues, TError>>,
+) => Partial<FormState<TValues, TError>>
 ```
 
 The built-in pipeline runs in this order:
 
-1. **values** — sets values, handles array mutations (append, remove, insert, move, swap)
-2. **touched** — marks touched on focus, reindexes on array ops
+1. **values** — sets values, handles array mutations (append, remove, insert, move, swap, replace)
+2. **touched** — marks touched on blur, reindexes on array ops
 3. **dirty** — compares against defaultValues with deep equality
 4. **validation** — per-field sync validators from registry
 5. **schemaValidation** — form-level resolver, skips if field already has error
 6. **asyncValidation** — async validators with debounce, version-based stale cancellation, auto-cancel on sync error
-7. **pending** — tracks pendingFields lifecycle
-8. **submit** — isSubmitting, submitCount, isSubmitSuccessful
+7. **submit** — isSubmitting, submitCount, isSubmitSuccessful
 
 You can override the pipeline via the `enhancers` option:
 
@@ -337,6 +348,24 @@ const form = createForm({
   ],
 });
 ```
+
+### `disableLayers`
+
+All mutating methods accept an optional `DispatchOptions` to skip specific layers for that dispatch:
+
+```ts
+// Set value without triggering validation
+form.field.setValue("name", "John", {
+  disableLayers: ["validation", "schemaValidation"],
+});
+
+// Append to array without dirty tracking
+form.fieldArray.append("items", { title: "" }, {
+  disableLayers: ["dirty"],
+});
+```
+
+Layer names match those in the default pipeline: `values`, `touched`, `dirty`, `validation`, `schemaValidation`, `asyncValidation`, `submit`.
 
 ## Usage outside React
 
@@ -360,6 +389,55 @@ form.subscribe((state) => console.log(state.values));
 
 // Read snapshot
 const { values, errors } = form.getState();
+```
+
+## Project structure
+
+```
+src/
+├── core/
+│   ├── actions.ts            # Action type constants
+│   ├── arrayReindex.ts       # Reindex path-keyed records after array ops
+│   ├── createForm.ts         # Form factory, pipeline assembly, dispatch
+│   ├── types.ts              # FormState, ActionContext, Enhancer, NamedEnhancer, Form
+│   └── utils.ts              # getIn, setIn, isEqual, treeMatcher
+├── layers/
+│   ├── values.ts             # Sets values in state
+│   ├── touched.ts            # Tracks touched fields
+│   ├── dirty.ts              # Tracks dirty fields (vs defaultValues)
+│   ├── validation.ts         # Per-field sync validation
+│   ├── schemaValidation.ts   # Form-level schema validation (FormResolver)
+│   ├── asyncValidation/
+│   │   ├── index.ts          # Async validation enhancer
+│   │   └── utils.ts          # runAsync, triggerArrayAsync helpers
+│   ├── submit.ts             # Submit lifecycle
+│   └── index.ts              # Re-exports all layer enhancers
+├── field/
+│   ├── createField.ts        # FieldNamespace factory
+│   ├── selectors.ts          # Cached field selectors
+│   └── types.ts              # FieldNamespace, FieldState
+├── fieldArray/
+│   ├── createFieldArray.ts   # FieldArrayNamespace factory
+│   └── types.ts              # FieldArrayNamespace, FieldArrayItem
+├── tree/
+│   ├── createTree.ts         # TreeNamespace factory
+│   ├── selectors.ts          # Cached tree selectors
+│   └── types.ts              # TreeNamespace
+├── validation/
+│   ├── registry.ts           # FieldRegistry for per-field validators
+│   └── types.ts              # FieldValidatorEntry, FormResolver
+├── react/
+│   ├── context.ts            # FormProvider / useFormContext
+│   ├── useZForm.ts           # useZForm hook
+│   ├── useZField.ts          # useZField hook
+│   ├── useZFieldArray.ts     # useZFieldArray hook
+│   ├── useZFieldValidation.ts
+│   ├── types.ts              # React-specific types
+│   └── index.ts
+├── types/
+│   └── paths.ts              # Path, PathValue, ArrayElement type utils
+├── selectors.ts              # FormSelectors type
+└── index.ts                  # Public API exports
 ```
 
 ## License

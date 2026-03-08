@@ -53,5 +53,5 @@ export interface UseZFieldArrayReturn<TError = string, TElement = unknown> {
   insert(index: number, value: TElement, options?: DispatchOptions): void;
   move(from: number, to: number, options?: DispatchOptions): void;
   swap(indexA: number, indexB: number, options?: DispatchOptions): void;
-  setValue(arr: TElement[], options?: DispatchOptions): void;
+  replace(arr: TElement[], options?: DispatchOptions): void;
 }

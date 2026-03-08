@@ -13,12 +13,6 @@ type FieldPath<TValues> = Path<TValues> | (string & Record<never, never>);
 
 export interface FieldArrayNamespace<TValues, TError = string> {
   getLength(path: FieldPath<TValues>): number;
-  setValue<P extends Path<TValues>>(
-    path: P,
-    arr: ArrayElement<PathValue<TValues, P>>[],
-    options?: DispatchOptions,
-  ): void;
-  setValue(path: string, arr: unknown[], options?: DispatchOptions): void;
   append<P extends Path<TValues>>(
     path: P,
     value: ArrayElement<PathValue<TValues, P>>,

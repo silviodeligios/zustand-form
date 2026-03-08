@@ -29,12 +29,6 @@ export function createFieldArrayNamespace<TValues, TError = string>(
 
   return {
     getLength: (path) => getInArray(s().values, path).length,
-    setValue: (
-      path: string,
-      v: unknown[],
-      opts?: { disableLayers?: string[] },
-    ) => dispatch({ type: A.SET_VALUE, path, value: v, options: opts }),
-
     append: (path: string, v: unknown, opts?: { disableLayers?: string[] }) =>
       dispatch({ type: A.ARRAY_APPEND, path, value: v, options: opts }),
     prepend: (path: string, v: unknown, opts?: { disableLayers?: string[] }) =>
