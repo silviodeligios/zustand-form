@@ -1,6 +1,6 @@
 import { memo, useRef } from "react";
-import { useZField } from "zform/react";
-import type { UseZFieldOptions } from "zform/react";
+import { useField } from "zform/react";
+import type { UseFieldOptions } from "zform/react";
 import type { FormStore } from "../formConfig";
 import FieldWrapper from "./FieldWrapper";
 
@@ -19,17 +19,17 @@ const TextField = memo(function TextField({
   path: string;
   label: string;
   type?: string;
-  validate?: UseZFieldOptions["validate"];
-  asyncValidate?: UseZFieldOptions["asyncValidate"];
-  asyncValidateMode?: UseZFieldOptions["asyncValidateMode"];
+  validate?: UseFieldOptions["validate"];
+  asyncValidate?: UseFieldOptions["asyncValidate"];
+  asyncValidateMode?: UseFieldOptions["asyncValidateMode"];
   debounce?: number;
   placeholder?: string;
 }) {
-  const options: UseZFieldOptions | undefined =
+  const options: UseFieldOptions | undefined =
     validate || asyncValidate || debounce
       ? { validate, asyncValidate, asyncValidateMode, debounce }
       : undefined;
-  const { field, fieldState } = useZField(form, path, options);
+  const { field, fieldState } = useField(form, path, options);
   const renderCount = useRef(0);
   renderCount.current++;
 

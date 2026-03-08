@@ -1,5 +1,5 @@
 import { memo, useState, useCallback } from "react";
-import { useZFieldArray } from "zform/react";
+import { useFieldArray } from "zform/react";
 import {
   checkSectionTitleUniqueness,
   validateSectionsMinLength,
@@ -67,7 +67,7 @@ const SectionBlock = memo(function SectionBlock({
 }) {
   const itemsPath = `sections.${sectionIndex}.items`;
   const { fields: items, append: appendItem } =
-    useZFieldArray<FormValues>(form, itemsPath);
+    useFieldArray<FormValues>(form, itemsPath);
 
   return (
     <div style={{ border: "1px dashed #ccc", borderRadius: 6, padding: 12 }}>
@@ -121,7 +121,7 @@ export default function NestedArrayExample({ form }: { form: FormStore }) {
   }, []);
 
   const { fields: sections, append: appendSection, fieldState } =
-    useZFieldArray<FormValues>(form, "sections", {
+    useFieldArray<FormValues>(form, "sections", {
       validate: validateSectionsMinLength,
       asyncValidate,
       debounce: 1000,

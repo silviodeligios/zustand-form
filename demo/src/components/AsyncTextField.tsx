@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { UseZFieldOptions } from "zform/react";
+import type { UseFieldOptions } from "zform/react";
 import type { FormStore } from "../formConfig";
 import TextField from "./TextField";
 
@@ -18,7 +18,7 @@ export default function AsyncTextField({
   path: string;
   label: string;
   type?: string;
-  validate?: UseZFieldOptions["validate"];
+  validate?: UseFieldOptions["validate"];
   asyncValidate: (value: any) => Promise<string | undefined>;
   debounce: number;
   placeholder?: string;

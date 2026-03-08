@@ -6,7 +6,7 @@ import type { StateCreator } from "zustand/vanilla";
 import type { FormResolver, FieldValidateMode } from "../validation/types";
 import type { FormHook } from "./types";
 
-export interface UseZFormConfig<TValues, TError = string> {
+export interface UseFormConfig<TValues, TError = string> {
   defaultValues: TValues;
   resolver?: FormResolver<TValues, TError>;
   resolverMode?: FieldValidateMode;
@@ -18,8 +18,8 @@ export interface UseZFormConfig<TValues, TError = string> {
   ) => StateCreator<FormState<TValues, TError>, any, any>;
 }
 
-export function useZForm<TValues, TError = string>(
-  config: UseZFormConfig<TValues, TError>,
+export function useForm<TValues, TError = string>(
+  config: UseFormConfig<TValues, TError>,
 ): FormHook<TValues, TError> {
   const formRef = useRef<Form<TValues, TError>>();
   if (!formRef.current) {

@@ -1,5 +1,5 @@
 import { memo, useCallback, useRef } from "react";
-import { useZField } from "zform/react";
+import { useField } from "zform/react";
 import type { FormStore, Category } from "../formConfig";
 import { CATEGORIES } from "../formConfig";
 import FieldWrapper from "./FieldWrapper";
@@ -13,7 +13,7 @@ const EntitySelect = memo(function EntitySelect({
   path: string;
   label: string;
 }) {
-  const { field, fieldState } = useZField(form, path);
+  const { field, fieldState } = useField(form, path);
   const renderCount = useRef(0);
   renderCount.current++;
 

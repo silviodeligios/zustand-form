@@ -1,14 +1,14 @@
 import { useMemo, useCallback, useRef, useState } from "react";
 import type {
   FormHook,
-  UseZFieldOptions,
-  UseZFieldArrayReturn,
+  UseFieldOptions,
+  UseFieldArrayReturn,
 } from "./types";
 import { shallow } from "zustand/shallow";
 import type { Path, PathValue, ArrayElement } from "../types/paths";
 import type { DispatchOptions } from "../core/types";
 import { useOptionalFormContext, missingProvider } from "./context";
-import { useZFieldValidation } from "./useZFieldValidation";
+import { useFieldValidation } from "./useFieldValidation";
 
 let keyCounter = 0;
 function generateKey(): string {
@@ -16,29 +16,29 @@ function generateKey(): string {
 }
 
 // Form-explicit overload: element type inferred from path
-export function useZFieldArray<
+export function useFieldArray<
   TValues,
   TError = string,
   P extends Path<TValues> = Path<TValues>,
 >(
   form: FormHook<TValues, TError>,
   path: P,
-  options?: UseZFieldOptions<TError, PathValue<TValues, P>>,
-): UseZFieldArrayReturn<TError, ArrayElement<PathValue<TValues, P>>>;
+  options?: UseFieldOptions<TError, PathValue<TValues, P>>,
+): UseFieldArrayReturn<TError, ArrayElement<PathValue<TValues, P>>>;
 
 // Context-based overload: element type unknown
-export function useZFieldArray(
+export function useFieldArray(
   path: string,
-  options?: UseZFieldOptions,
-): UseZFieldArrayReturn;
+  options?: UseFieldOptions,
+): UseFieldArrayReturn;
 
 // Implementation
-export function useZFieldArray<TValues, TError = string>(
+export function useFieldArray<TValues, TError = string>(
   formOrPath: FormHook<TValues, TError> | string,
-  pathOrOptions?: string | UseZFieldOptions<TError>,
-  maybeOptions?: UseZFieldOptions<TError>,
+  pathOrOptions?: string | UseFieldOptions<TError>,
+  maybeOptions?: UseFieldOptions<TError>,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): UseZFieldArrayReturn<any, any> {
+): UseFieldArrayReturn<any, any> {
   const contextForm = useOptionalFormContext<TValues, TError>();
   const form: FormHook<TValues, TError> =
     typeof formOrPath === "string"
@@ -46,11 +46,11 @@ export function useZFieldArray<TValues, TError = string>(
       : formOrPath;
   const path: string =
     typeof formOrPath === "string" ? formOrPath : (pathOrOptions as string);
-  const options: UseZFieldOptions<TError> | undefined =
+  const options: UseFieldOptions<TError> | undefined =
     typeof formOrPath === "string"
-      ? (pathOrOptions as UseZFieldOptions<TError> | undefined)
+      ? (pathOrOptions as UseFieldOptions<TError> | undefined)
       : maybeOptions;
-  useZFieldValidation(form, path as Path<TValues>, options);
+  useFieldValidation(form, path as Path<TValues>, options);
 
   const fieldState = form(form.field.select.fieldState(path), shallow);
 

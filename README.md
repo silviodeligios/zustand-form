@@ -6,7 +6,7 @@ A React form library built on [Zustand](https://github.com/pmndrs/zustand). The 
 
 ```
 React layer
-  useZForm (callable selector) · useZField · useZFieldArray · FormProvider
+  useForm (callable selector) · useField · useFieldArray · FormProvider
 
 API (vanilla, framework-agnostic)
   form.field.method(path) · form.tree.method(path?) · form-level methods
@@ -23,11 +23,11 @@ When an action is dispatched, every enhancer runs in order against the same `pre
 ## Quick start
 
 ```tsx
-import { useZForm, useZField, FormProvider } from "zform";
+import { useForm, useField, FormProvider } from "zform";
 import { devtools } from "zustand/middleware";
 
 function App() {
-  const form = useZForm<FormValues>({
+  const form = useForm<FormValues>({
     defaultValues: { name: "", email: "" },
     resolver: myResolver,
     resolverMode: "onChange",
@@ -51,7 +51,7 @@ function App() {
 }
 ```
 
-## `useZField` — bind a field
+## `useField` — bind a field
 
 Returns `{ field, fieldState }` like React Hook Form's `useController`. Handlers are memoized — child components wrapped in `React.memo` will skip re-renders when only the parent changes.
 
@@ -59,17 +59,17 @@ Both signatures are supported:
 
 ```tsx
 // Explicit form prop
-const { field, fieldState } = useZField(form, "name");
+const { field, fieldState } = useField(form, "name");
 
 // From context (uses FormProvider)
-const { field, fieldState } = useZField("name");
+const { field, fieldState } = useField("name");
 ```
 
-When `form` is not passed, `useZField` calls `useFormContext()` internally. If no `FormProvider` is found, it throws.
+When `form` is not passed, `useField` calls `useFormContext()` internally. If no `FormProvider` is found, it throws.
 
 ```tsx
 function NameField() {
-  const { field, fieldState } = useZField("name");
+  const { field, fieldState } = useField("name");
 
   return (
     <div>
@@ -89,22 +89,22 @@ function NameField() {
 
 `fieldState` includes: `value`, `dirty`, `touched`, `error`, `pending`, `focused`.
 
-When `form.field.focus(path)` is called programmatically, `useZField` detects the change and calls `el.focus()` on the bound ref automatically.
+When `form.field.focus(path)` is called programmatically, `useField` detects the change and calls `el.focus()` on the bound ref automatically.
 
 ## Field-level validation
 
-`useZField` accepts sync and async validators as its last argument (with or without the `form` prop):
+`useField` accepts sync and async validators as its last argument (with or without the `form` prop):
 
 ```tsx
 // With explicit form
-const { field, fieldState } = useZField(form, "email", {
+const { field, fieldState } = useField(form, "email", {
   validate: (v) => (!String(v).includes("@") ? "Must contain @" : undefined),
   asyncValidate: (v) => checkEmailAvailability(v),
   debounce: 500,
 });
 
 // From context
-const { field, fieldState } = useZField("email", {
+const { field, fieldState } = useField("email", {
   validate: (v) => (!String(v).includes("@") ? "Must contain @" : undefined),
   asyncValidate: (v) => checkEmailAvailability(v),
   debounce: 500,
@@ -145,21 +145,21 @@ const resolver: FormResolver<FormValues> = {
   },
 };
 
-const form = useZForm({ defaultValues, resolver, resolverMode: "onChange" });
+const form = useForm({ defaultValues, resolver, resolverMode: "onChange" });
 ```
 
 ## Arrays
 
-`useZFieldArray` returns mutation methods that automatically reindex all path-keyed records (dirty, errors, touched, pending). Each item has a stable `id` for React keys and an `index` for path construction.
+`useFieldArray` returns mutation methods that automatically reindex all path-keyed records (dirty, errors, touched, pending). Each item has a stable `id` for React keys and an `index` for path construction.
 
 Both signatures are supported:
 
 ```tsx
 // Explicit form prop
-const { fields, append, remove, move } = useZFieldArray(form, "sections");
+const { fields, append, remove, move } = useFieldArray(form, "sections");
 
 // From context
-const { fields, append, remove, move } = useZFieldArray("sections");
+const { fields, append, remove, move } = useFieldArray("sections");
 ```
 
 ```tsx
@@ -183,11 +183,11 @@ form.fieldArray.replace("sections", [{ title: "New" }]);
 
 ## `FormProvider` + `useFormContext`
 
-Context-based API to avoid prop drilling. Used automatically by `useZField` and `useZFieldArray` when no `form` argument is passed.
+Context-based API to avoid prop drilling. Used automatically by `useField` and `useFieldArray` when no `form` argument is passed.
 
 ```tsx
 function App() {
-  const form = useZForm<FormValues>({ defaultValues });
+  const form = useForm<FormValues>({ defaultValues });
 
   return (
     <FormProvider value={form}>
@@ -198,12 +198,12 @@ function App() {
 }
 
 function NameField() {
-  const { field, fieldState } = useZField("name");
+  const { field, fieldState } = useField("name");
   // ...
 }
 
 function EmailField() {
-  const { field, fieldState } = useZField("email", {
+  const { field, fieldState } = useField("email", {
     asyncValidate: checkEmail,
     debounce: 500,
   });
@@ -289,8 +289,8 @@ form.subscribe((state, prev) => {
   }
 });
 
-// Devtools — pass middleware to useZForm
-const form = useZForm({
+// Devtools — pass middleware to useForm
+const form = useForm({
   defaultValues,
   middleware: (init) => devtools(init, { name: "zustand-form" }),
 });
@@ -428,10 +428,10 @@ src/
 │   └── types.ts              # FieldValidatorEntry, FormResolver
 ├── react/
 │   ├── context.ts            # FormProvider / useFormContext
-│   ├── useZForm.ts           # useZForm hook
-│   ├── useZField.ts          # useZField hook
-│   ├── useZFieldArray.ts     # useZFieldArray hook
-│   ├── useZFieldValidation.ts
+│   ├── useForm.ts           # useForm hook
+│   ├── useField.ts          # useField hook
+│   ├── useFieldArray.ts     # useFieldArray hook
+│   ├── useFieldValidation.ts
 │   ├── types.ts              # React-specific types
 │   └── index.ts
 ├── types/

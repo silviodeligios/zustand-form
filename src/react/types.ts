@@ -14,8 +14,8 @@ export interface FormHook<TValues, TError = string> extends Form<
   ): U;
 }
 
-/** Options for useZField — per-field validation + registration */
-export interface UseZFieldOptions<TError = string, TValue = unknown> {
+/** Options for useField — per-field validation + registration */
+export interface UseFieldOptions<TError = string, TValue = unknown> {
   validate?: FieldValidatorEntry<TError, TValue>["validate"];
   validateMode?: FieldValidatorEntry<TError>["validateMode"];
   asyncValidate?: FieldValidatorEntry<TError, TValue>["asyncValidate"];
@@ -23,16 +23,16 @@ export interface UseZFieldOptions<TError = string, TValue = unknown> {
   debounce?: FieldValidatorEntry<TError>["debounce"];
 }
 
-/** Return type of useZField */
-export interface UseZFieldReturn<TError = string, TValue = unknown> {
+/** Return type of useField */
+export interface UseFieldReturn<TError = string, TValue = unknown> {
   field: InputProps<TValue> & {
     ref: (el: HTMLElement | null) => void;
   };
   fieldState: FieldState<TError>;
 }
 
-/** Return type of useZFieldArray */
-export interface UseZFieldArrayReturn<TError = string, TElement = unknown> {
+/** Return type of useFieldArray */
+export interface UseFieldArrayReturn<TError = string, TElement = unknown> {
   fields: FieldArrayItem[];
   fieldState: FieldState<TError>;
   append(value: TElement, options?: DispatchOptions): void;

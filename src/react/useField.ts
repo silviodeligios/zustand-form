@@ -1,34 +1,34 @@
 import { useEffect, useRef, useCallback, useMemo } from "react";
-import type { FormHook, UseZFieldOptions, UseZFieldReturn } from "./types";
+import type { FormHook, UseFieldOptions, UseFieldReturn } from "./types";
 import type { Path, PathValue } from "../types/paths";
 import { shallow } from "zustand/shallow";
 import { useOptionalFormContext, missingProvider } from "./context";
-import { useZFieldValidation } from "./useZFieldValidation";
+import { useFieldValidation } from "./useFieldValidation";
 
 // Form-explicit overload: path inference works
-export function useZField<
+export function useField<
   TValues,
   TError = string,
   P extends Path<TValues> = Path<TValues>,
 >(
   form: FormHook<TValues, TError>,
   path: P,
-  options?: UseZFieldOptions<TError, PathValue<TValues, P>>,
-): UseZFieldReturn<TError, PathValue<TValues, P>>;
+  options?: UseFieldOptions<TError, PathValue<TValues, P>>,
+): UseFieldReturn<TError, PathValue<TValues, P>>;
 
 // Context-based overload: TValues not inferrable, stays unknown
-export function useZField<TError = string>(
+export function useField<TError = string>(
   path: string,
-  options?: UseZFieldOptions<TError>,
-): UseZFieldReturn<TError>;
+  options?: UseFieldOptions<TError>,
+): UseFieldReturn<TError>;
 
 // Implementation
-export function useZField<TValues, TError = string>(
+export function useField<TValues, TError = string>(
   formOrPath: FormHook<TValues, TError> | string,
-  pathOrOptions?: string | UseZFieldOptions<TError>,
-  maybeOptions?: UseZFieldOptions<TError>,
+  pathOrOptions?: string | UseFieldOptions<TError>,
+  maybeOptions?: UseFieldOptions<TError>,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): UseZFieldReturn<TError, any> {
+): UseFieldReturn<TError, any> {
   const contextForm = useOptionalFormContext<TValues, TError>();
   const form: FormHook<TValues, TError> =
     typeof formOrPath === "string"
@@ -36,11 +36,11 @@ export function useZField<TValues, TError = string>(
       : formOrPath;
   const path: string =
     typeof formOrPath === "string" ? formOrPath : (pathOrOptions as string);
-  const options: UseZFieldOptions<TError> | undefined =
+  const options: UseFieldOptions<TError> | undefined =
     typeof formOrPath === "string"
-      ? (pathOrOptions as UseZFieldOptions<TError> | undefined)
+      ? (pathOrOptions as UseFieldOptions<TError> | undefined)
       : maybeOptions;
-  useZFieldValidation(form, path as Path<TValues>, options);
+  useFieldValidation(form, path as Path<TValues>, options);
 
   const inputProps = form(form.field.select.inputProps(path), shallow);
   const fieldState = form(form.field.select.fieldState(path), shallow);

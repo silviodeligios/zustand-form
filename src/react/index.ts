@@ -1,11 +1,11 @@
-export { useZForm, type UseZFormConfig } from "./useZForm";
-export { useZField } from "./useZField";
-export { useZFieldValidation } from "./useZFieldValidation";
-export { useZFieldArray } from "./useZFieldArray";
+export { useForm, type UseFormConfig } from "./useForm";
+export { useField } from "./useField";
+export { useFieldValidation } from "./useFieldValidation";
+export { useFieldArray } from "./useFieldArray";
 export { FormProvider, useFormContext } from "./context";
 export type {
   FormHook,
-  UseZFieldOptions,
-  UseZFieldReturn,
-  UseZFieldArrayReturn,
+  UseFieldOptions,
+  UseFieldReturn,
+  UseFieldArrayReturn,
 } from "./types";
