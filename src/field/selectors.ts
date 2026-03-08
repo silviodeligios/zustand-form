@@ -1,5 +1,6 @@
 import type { FormState } from "../core/types";
 import type { FieldState, FieldNamespace } from "./types";
+import type { Path, PathValue } from "../types/paths";
 import { getIn } from "../core/utils";
 
 export function createFieldSelectors<
@@ -32,8 +33,10 @@ export function createFieldSelectors<
   };
 
   return {
-    value: (path: string): Sel<unknown> =>
-      cached(cache.value, path, () => (s) => getIn(s.values, path)),
+    value: <P extends Path<TValues>>(path: P) =>
+      cached(cache.value, path, () => (s) => getIn(s.values, path)) as Sel<
+        PathValue<TValues, P>
+      >,
     error: (path: string): Sel<TError | undefined> =>
       cached(cache.error, path, () => (s) => s.errors[path]),
     dirty: (path: string): Sel<boolean> =>
@@ -44,7 +47,7 @@ export function createFieldSelectors<
       cached(cache.pending, path, () => (s) => s.pendingFields[path] ?? false),
     focused: (path: string): Sel<boolean> =>
       cached(cache.focused, path, () => (s) => s.focusedField === path),
-    fieldState: (path: string): Sel<FieldState<TError>> =>
+    fieldState: <P extends Path<TValues>>(path: P) =>
       cached(cache.fieldState, path, () => (s) => ({
         value: getIn(s.values, path),
         dirty: s.dirtyFields[path] ?? false,
@@ -52,6 +55,6 @@ export function createFieldSelectors<
         error: s.errors[path],
         pending: s.pendingFields[path] ?? false,
         focused: s.focusedField === path,
-      })),
+      })) as Sel<FieldState<TError, PathValue<TValues, P>>>,
   };
 }

@@ -15,7 +15,7 @@ export interface UseZFormConfig<TValues, TError = string> {
   ) => (NamedEnhancer<TValues, TError> | Enhancer<TValues, TError>)[];
   middleware?: (
     initializer: StateCreator<FormState<TValues, TError>>,
-  ) => StateCreator<FormState<TValues, TError>>;
+  ) => StateCreator<FormState<TValues, TError>, any, any>;
 }
 
 export function useZForm<TValues, TError = string>(

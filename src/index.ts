@@ -1,3 +1,6 @@
+// Path types
+export type { Path, PathValue, ArrayElement } from "./types/paths";
+
 // Core
 export { createForm, type FormConfig } from "./core/createForm";
 export type {
@@ -50,6 +53,7 @@ export type { FormSelectors } from "./selectors";
 export {
   useZForm,
   useZField,
+  useZFieldValidation,
   useZFieldArray,
   FormProvider,
   useFormContext,
@@ -59,5 +63,6 @@ export type {
   UseZFormConfig,
   UseZFieldOptions,
   UseZFieldReturn,
+  FieldArrayState,
   UseZFieldArrayReturn,
 } from "./react";

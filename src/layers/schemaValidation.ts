@@ -35,6 +35,18 @@ export function schemaValidationEnhancer<TValues, TError = string>(
         const base = draft.errors ?? prev.errors;
         return { ...draft, errors: { ...base, [ctx.path]: error } };
       }
+      case A.ARRAY_APPEND:
+      case A.ARRAY_REMOVE:
+      case A.ARRAY_INSERT:
+      case A.ARRAY_MOVE:
+      case A.ARRAY_SWAP: {
+        if (!ctx.path || resolverMode !== "onChange") return draft;
+        if (draft.errors?.[ctx.path]) return draft;
+        const values = draft.values ?? prev.values;
+        const error = resolver.validateField(ctx.path, values);
+        const base = draft.errors ?? prev.errors;
+        return { ...draft, errors: { ...base, [ctx.path]: error } };
+      }
       default:
         return draft;
     }

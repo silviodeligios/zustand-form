@@ -29,12 +29,15 @@ export function createFieldArrayNamespace<TValues, TError = string>(
 
   return {
     getLength: (path) => getInArray(s().values, path).length,
-    setValue: (path, v, opts?) =>
-      dispatch({ type: A.SET_VALUE, path, value: v, options: opts }),
+    setValue: (
+      path: string,
+      v: unknown[],
+      opts?: { disableLayers?: string[] },
+    ) => dispatch({ type: A.SET_VALUE, path, value: v, options: opts }),
 
-    append: (path, v, opts?) =>
+    append: (path: string, v: unknown, opts?: { disableLayers?: string[] }) =>
       dispatch({ type: A.ARRAY_APPEND, path, value: v, options: opts }),
-    prepend: (path, v, opts?) =>
+    prepend: (path: string, v: unknown, opts?: { disableLayers?: string[] }) =>
       dispatch({
         type: A.ARRAY_INSERT,
         path,
@@ -42,9 +45,14 @@ export function createFieldArrayNamespace<TValues, TError = string>(
         value: v,
         options: opts,
       }),
-    remove: (path, i, opts?) =>
+    remove: (path: string, i: number, opts?: { disableLayers?: string[] }) =>
       dispatch({ type: A.ARRAY_REMOVE, path, index: i, options: opts }),
-    insert: (path, i, v, opts?) =>
+    insert: (
+      path: string,
+      i: number,
+      v: unknown,
+      opts?: { disableLayers?: string[] },
+    ) =>
       dispatch({
         type: A.ARRAY_INSERT,
         path,

@@ -1,6 +1,10 @@
-import { memo } from "react";
+import { memo, useState, useCallback } from "react";
 import { useZFieldArray } from "zform";
-import { checkSectionTitleUniqueness } from "../formConfig";
+import {
+  checkSectionTitleUniqueness,
+  validateSectionsMinLength,
+  checkSectionsMaxLength,
+} from "../formConfig";
 import type { FormValues, FormStore } from "../formConfig";
 import TextField from "../components/TextField";
 import AsyncTextField from "../components/AsyncTextField";
@@ -109,8 +113,23 @@ const SectionBlock = memo(function SectionBlock({
 // Main example
 // ---------------------------------------------------------------------------
 export default function NestedArrayExample({ form }: { form: FormStore }) {
-  const { fields: sections, append: appendSection } =
-    useZFieldArray<FormValues>(form, "sections");
+  const [isCalling, setIsCalling] = useState(false);
+
+  const asyncValidate = useCallback((value: unknown) => {
+    setIsCalling(true);
+    return checkSectionsMaxLength(value).finally(() => setIsCalling(false));
+  }, []);
+
+  const { fields: sections, append: appendSection, fieldState } =
+    useZFieldArray<FormValues>(form, "sections", {
+      validate: validateSectionsMinLength,
+      asyncValidate,
+      debounce: 1000,
+    });
+
+  const asyncStatus = fieldState.pending
+    ? isCalling ? "calling API" : "debouncing"
+    : "sleeping";
 
   return (
     <DemoExample title="Nested arrays — sections[].items[].label">
@@ -126,11 +145,36 @@ export default function NestedArrayExample({ form }: { form: FormStore }) {
         ))}
         <button
           type="button"
+          disabled={fieldState.pending}
           onClick={() => appendSection({ title: "", items: [{ label: "" }] })}
-          style={{ ...btnStyle, alignSelf: "flex-start", color: "#2563eb", borderColor: "#2563eb", padding: "6px 12px" }}
+          style={{
+            ...btnStyle,
+            alignSelf: "flex-start",
+            color: fieldState.pending ? "#999" : "#2563eb",
+            borderColor: fieldState.pending ? "#ccc" : "#2563eb",
+            padding: "6px 12px",
+          }}
         >
-          + Add section
+          {fieldState.pending ? "⏳ Validating..." : "+ Add section"}
         </button>
+      </div>
+
+      {/* Field array state panel */}
+      {fieldState.error && (
+        <div style={{ fontSize: 12, color: "#c00", marginTop: 8 }}>
+          ❌ {fieldState.error}
+        </div>
+      )}
+      <div style={{ fontSize: 12, color: "#888", marginTop: 8, display: "flex", gap: 8 }}>
+        <span>{fieldState.dirty ? "✏️" : "⬜"} dirty</span>
+        <span>{fieldState.touched ? "👆" : "⬜"} touched</span>
+        <span>{fieldState.pending ? "⏳" : "⬜"} pending</span>
+      </div>
+      <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+        Async validation: {asyncStatus === "debouncing" ? "⏳" : asyncStatus === "calling API" ? "📡" : "💤"} {asyncStatus}
+        <span style={{ marginLeft: 8, color: "#999" }}>
+          try: add &gt;3 sections or remove to 1
+        </span>
       </div>
     </DemoExample>
   );

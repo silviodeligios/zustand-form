@@ -33,51 +33,36 @@ export function touchedEnhancer<TValues, TError = string>(): Enhancer<
         };
         return { ...draft, touchedFields: touched };
       }
-      case A.ARRAY_REMOVE: {
-        if (!ctx.path || ctx.index == null) return draft;
-        const base = draft.touchedFields ?? prev.touchedFields;
-        return {
-          ...draft,
-          touchedFields: reindexPathKeyedRecord(base, ctx.path, {
-            type: "remove",
-            index: ctx.index,
-          }),
-        };
-      }
-      case A.ARRAY_INSERT: {
-        if (!ctx.path || ctx.index == null) return draft;
-        const base = draft.touchedFields ?? prev.touchedFields;
-        return {
-          ...draft,
-          touchedFields: reindexPathKeyedRecord(base, ctx.path, {
-            type: "insert",
-            index: ctx.index,
-          }),
-        };
-      }
-      case A.ARRAY_MOVE: {
-        if (!ctx.path || ctx.from == null || ctx.to == null) return draft;
-        const base = draft.touchedFields ?? prev.touchedFields;
-        return {
-          ...draft,
-          touchedFields: reindexPathKeyedRecord(base, ctx.path, {
-            type: "move",
-            from: ctx.from,
-            to: ctx.to,
-          }),
-        };
-      }
+      case A.ARRAY_APPEND:
+      case A.ARRAY_REMOVE:
+      case A.ARRAY_INSERT:
+      case A.ARRAY_MOVE:
       case A.ARRAY_SWAP: {
-        if (!ctx.path || ctx.from == null || ctx.to == null) return draft;
-        const base = draft.touchedFields ?? prev.touchedFields;
-        return {
-          ...draft,
-          touchedFields: reindexPathKeyedRecord(base, ctx.path, {
+        if (!ctx.path) return draft;
+        let base = draft.touchedFields ?? prev.touchedFields;
+        if (ctx.type === A.ARRAY_REMOVE)
+          base = reindexPathKeyedRecord(base, ctx.path, {
+            type: "remove",
+            index: ctx.index!,
+          });
+        else if (ctx.type === A.ARRAY_INSERT)
+          base = reindexPathKeyedRecord(base, ctx.path, {
+            type: "insert",
+            index: ctx.index!,
+          });
+        else if (ctx.type === A.ARRAY_MOVE)
+          base = reindexPathKeyedRecord(base, ctx.path, {
+            type: "move",
+            from: ctx.from!,
+            to: ctx.to!,
+          });
+        else if (ctx.type === A.ARRAY_SWAP)
+          base = reindexPathKeyedRecord(base, ctx.path, {
             type: "swap",
-            from: ctx.from,
-            to: ctx.to,
-          }),
-        };
+            from: ctx.from!,
+            to: ctx.to!,
+          });
+        return { ...draft, touchedFields: { ...base, [ctx.path]: true } };
       }
       case A.RESET_FORM:
         return { ...draft, touchedFields: {}, focusedField: null };

@@ -113,4 +113,15 @@ export const checkLabelUniqueness = async (label: string): Promise<string | unde
   return undefined;
 };
 
+export const validateSectionsMinLength = (value: unknown): string | undefined => {
+  if (!Array.isArray(value) || value.length < 2) return "At least 2 sections required";
+  return undefined;
+};
+
+export const checkSectionsMaxLength = async (value: unknown): Promise<string | undefined> => {
+  await sleep(1500);
+  if (Array.isArray(value) && value.length > 3) return "Max 3 sections allowed (server)";
+  return undefined;
+};
+
 export type FormStore = FormHook<FormValues>;

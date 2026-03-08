@@ -76,51 +76,46 @@ export function validationEnhancer<TValues, TError = string>(
         const base = draft.errors ?? prev.errors;
         return { ...draft, errors: { ...base, [ctx.path]: error } };
       }
-      case A.ARRAY_REMOVE: {
-        if (!ctx.path || ctx.index == null) return draft;
-        const base = draft.errors ?? prev.errors;
-        return {
-          ...draft,
-          errors: reindexPathKeyedRecord(base, ctx.path, {
-            type: "remove",
-            index: ctx.index,
-          }),
-        };
-      }
-      case A.ARRAY_INSERT: {
-        if (!ctx.path || ctx.index == null) return draft;
-        const base = draft.errors ?? prev.errors;
-        return {
-          ...draft,
-          errors: reindexPathKeyedRecord(base, ctx.path, {
-            type: "insert",
-            index: ctx.index,
-          }),
-        };
-      }
-      case A.ARRAY_MOVE: {
-        if (!ctx.path || ctx.from == null || ctx.to == null) return draft;
-        const base = draft.errors ?? prev.errors;
-        return {
-          ...draft,
-          errors: reindexPathKeyedRecord(base, ctx.path, {
-            type: "move",
-            from: ctx.from,
-            to: ctx.to,
-          }),
-        };
-      }
+      case A.ARRAY_APPEND:
+      case A.ARRAY_REMOVE:
+      case A.ARRAY_INSERT:
+      case A.ARRAY_MOVE:
       case A.ARRAY_SWAP: {
-        if (!ctx.path || ctx.from == null || ctx.to == null) return draft;
-        const base = draft.errors ?? prev.errors;
-        return {
-          ...draft,
-          errors: reindexPathKeyedRecord(base, ctx.path, {
+        if (!ctx.path) return draft;
+        let errors = draft.errors ?? prev.errors;
+        if (ctx.type === A.ARRAY_REMOVE)
+          errors = reindexPathKeyedRecord(errors, ctx.path, {
+            type: "remove",
+            index: ctx.index!,
+          });
+        else if (ctx.type === A.ARRAY_INSERT)
+          errors = reindexPathKeyedRecord(errors, ctx.path, {
+            type: "insert",
+            index: ctx.index!,
+          });
+        else if (ctx.type === A.ARRAY_MOVE)
+          errors = reindexPathKeyedRecord(errors, ctx.path, {
+            type: "move",
+            from: ctx.from!,
+            to: ctx.to!,
+          });
+        else if (ctx.type === A.ARRAY_SWAP)
+          errors = reindexPathKeyedRecord(errors, ctx.path, {
             type: "swap",
-            from: ctx.from,
-            to: ctx.to,
-          }),
-        };
+            from: ctx.from!,
+            to: ctx.to!,
+          });
+        // Validate array path itself
+        const entry = registry.get(ctx.path);
+        if (
+          entry?.validate &&
+          (entry.validateMode ?? "onChange") === "onChange"
+        ) {
+          const values = draft.values ?? prev.values;
+          const error = entry.validate(getIn(values, ctx.path));
+          errors = { ...errors, [ctx.path]: error };
+        }
+        return { ...draft, errors };
       }
       case A.SUBMIT: {
         let errors = draft.errors ?? prev.errors;

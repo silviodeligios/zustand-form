@@ -35,7 +35,7 @@ export interface FormConfig<TValues, TError = string> {
   middleware?:
     | ((
         initializer: StateCreator<FormState<TValues, TError>>,
-      ) => StateCreator<FormState<TValues, TError>>)
+      ) => StateCreator<FormState<TValues, TError>, any, any>)
     | undefined;
 }
 

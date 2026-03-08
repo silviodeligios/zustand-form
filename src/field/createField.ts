@@ -1,6 +1,7 @@
 import type { StoreApi } from "zustand/vanilla";
 import type { FormState, Dispatch } from "../core/types";
 import type { FieldNamespace } from "./types";
+import type { Path, PathValue } from "../types/paths";
 import * as A from "../core/actions";
 import { getIn } from "../core/utils";
 import { createFieldSelectors } from "./selectors";
@@ -12,13 +13,14 @@ export function createFieldNamespace<TValues, TError = string>(
   const s = () => store.getState();
 
   return {
-    getValue: (path) => getIn(s().values, path),
+    getValue: <P extends Path<TValues>>(path: P) =>
+      getIn(s().values, path) as PathValue<TValues, P>,
     isDirty: (path) => s().dirtyFields[path] === true,
     isTouched: (path) => s().touchedFields[path] === true,
     isPending: (path) => s().pendingFields[path] === true,
     getError: (path) => s().errors[path],
 
-    setValue: (path, v, opts?) =>
+    setValue: (path: string, v: unknown, opts?: { disableLayers?: string[] }) =>
       dispatch({ type: A.SET_VALUE, path, value: v, options: opts }),
     setError: (path, msg, opts?) =>
       dispatch({ type: A.SET_ERROR, path, value: msg, options: opts }),
