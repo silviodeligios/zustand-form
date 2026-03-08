@@ -2,34 +2,33 @@ import type { StoreApi } from "zustand/vanilla";
 import type { FormState, Dispatch } from "../core/types";
 import type { FieldArrayNamespace } from "./types";
 import * as A from "../core/actions";
-import { getIn } from "../core/utils";
-
-type Selector<R> = (s: FormState<unknown, unknown>) => R;
-
-function cached<R>(
-  map: Map<string, Selector<R>>,
-  path: string,
-  factory: () => Selector<R>,
-): Selector<R> {
-  let sel = map.get(path);
-  if (!sel) {
-    sel = factory();
-    map.set(path, sel);
-  }
-  return sel;
-}
+import { getInArray } from "../core/utils";
 
 export function createFieldArrayNamespace<TValues, TError = string>(
   store: StoreApi<FormState<TValues, TError>>,
   dispatch: Dispatch,
 ): FieldArrayNamespace<TValues, TError> {
+  type Sel<R> = (s: FormState<TValues, TError>) => R;
+
+  function cached<R>(
+    map: Map<string, Sel<R>>,
+    path: string,
+    factory: () => Sel<R>,
+  ): Sel<R> {
+    let sel = map.get(path);
+    if (!sel) {
+      sel = factory();
+      map.set(path, sel);
+    }
+    return sel;
+  }
+
   const s = () => store.getState();
 
-  const lengthCache = new Map<string, Selector<number>>();
+  const lengthCache = new Map<string, Sel<number>>();
 
   return {
-    getLength: (path) =>
-      ((getIn(s().values, path) as unknown[] | undefined) ?? []).length,
+    getLength: (path) => getInArray(s().values, path).length,
     setValue: (path, v, opts?) =>
       dispatch({ type: A.SET_VALUE, path, value: v, options: opts }),
 
@@ -59,13 +58,12 @@ export function createFieldArrayNamespace<TValues, TError = string>(
       dispatch({ type: A.ARRAY_SWAP, path, from: a, to: b, options: opts }),
 
     select: {
-      length: (path) =>
+      length: (path): Sel<number> =>
         cached(
           lengthCache,
           path,
-          () => (s) =>
-            ((getIn(s.values, path) as unknown[] | undefined) ?? []).length,
-        ) as (s: FormState<TValues, TError>) => number,
+          () => (s) => getInArray(s.values, path).length,
+        ),
     },
   };
 }

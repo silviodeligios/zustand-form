@@ -11,6 +11,12 @@ export function getIn(obj: unknown, path: string): unknown {
   return current;
 }
 
+/** Deep get a value expected to be an array (returns [] if missing or not array) */
+export function getInArray(obj: unknown, path: string): unknown[] {
+  const val = getIn(obj, path);
+  return Array.isArray(val) ? val : [];
+}
+
 /** Filter a Record keeping only keys matching a prefix (key === prefix || key starts with prefix.) */
 export function filterByPrefix<V>(
   record: Record<string, V>,
@@ -34,10 +40,10 @@ export function treeMatcher(prefix?: string): (key: string) => boolean {
 }
 
 /** Immutable deep set with structural sharing */
-export function setIn(obj: unknown, path: string, value: unknown): unknown {
+export function setIn<T>(obj: T, path: string, value: unknown): T {
   const keys = path.split(".");
-  if (keys.length === 0) return value;
-  return setAtKeys(obj, keys, 0, value);
+  if (keys.length === 0) return value as T;
+  return setAtKeys(obj, keys, 0, value) as T;
 }
 
 function setAtKeys(
@@ -59,6 +65,13 @@ function setAtKeys(
   return { ...(obj as Record<string, unknown>), [key]: next };
 }
 
+/** Type guard for thenable values (Promise-like) */
+export function isThenable(value: unknown): value is PromiseLike<void> {
+  return (
+    value != null && typeof (value as PromiseLike<void>).then === "function"
+  );
+}
+
 /** Simple deep equality (handles primitives, plain objects, arrays) */
 export function isEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -66,17 +79,13 @@ export function isEqual(a: unknown, b: unknown): boolean {
   if (typeof a !== typeof b) return false;
   if (typeof a !== "object") return false;
   if (Array.isArray(a) !== Array.isArray(b)) return false;
-  const keysA = Object.keys(a as Record<string, unknown>);
-  const keysB = Object.keys(b as Record<string, unknown>);
+  const objA = a as Record<string, unknown>;
+  const objB = b as Record<string, unknown>;
+  const keysA = Object.keys(objA);
+  const keysB = Object.keys(objB);
   if (keysA.length !== keysB.length) return false;
   for (const key of keysA) {
-    if (
-      !isEqual(
-        (a as Record<string, unknown>)[key],
-        (b as Record<string, unknown>)[key],
-      )
-    )
-      return false;
+    if (!isEqual(objA[key], objB[key])) return false;
   }
   return true;
 }

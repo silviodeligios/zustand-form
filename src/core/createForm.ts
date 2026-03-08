@@ -13,6 +13,7 @@ import { createFieldArrayNamespace } from "../fieldArray/createFieldArray";
 import { createTreeNamespace } from "../tree/createTree";
 import type { FormResolver, FieldValidateMode } from "../validation/types";
 import { createFieldRegistry } from "../validation/registry";
+import { isThenable } from "./utils";
 import { valuesEnhancer } from "../layers/values";
 import { touchedEnhancer } from "../layers/touched";
 import { dirtyEnhancer } from "../layers/dirty";
@@ -154,11 +155,8 @@ export function createForm<TValues, TError = string>(
         return;
       }
       const result = onValid(state.values);
-      if (
-        result &&
-        typeof (result as unknown as Promise<void>).then === "function"
-      ) {
-        (result as unknown as Promise<void>).then(
+      if (isThenable(result)) {
+        result.then(
           () => dispatch({ type: A.SUBMIT_SUCCESS }),
           () => dispatch({ type: A.SUBMIT_FAILURE }),
         );
