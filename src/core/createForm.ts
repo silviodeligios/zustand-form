@@ -91,16 +91,22 @@ export function createForm<TValues, TError = string>(
     { name: "submit", enhancer: submitEnhancer<TValues, TError>() },
   ];
 
-  const enhancers: Enhancer<TValues, TError>[] = config.enhancers
+  const enhancers: NamedEnhancer<TValues, TError>[] = config.enhancers
     ? config
         .enhancers(defaultEnhancers)
-        .map((e) => (typeof e === "function" ? e : e.enhancer))
-    : defaultEnhancers.map((e) => e.enhancer);
+        .map((e) =>
+          typeof e === "function" ? { name: "", enhancer: e } : e,
+        )
+    : defaultEnhancers;
 
   function dispatch(ctx: ActionContext): void {
     const prev = store.getState();
     let draft: Partial<FormState<TValues, TError>> = {};
-    for (const e of enhancers) draft = e(ctx, prev, draft);
+    const skip = ctx.options?.disableLayers;
+    for (const e of enhancers) {
+      if (skip && e.name && skip.includes(e.name)) continue;
+      draft = e.enhancer(ctx, prev, draft);
+    }
     if (Object.keys(draft).length > 0) {
       const action = ctx.path ? `${ctx.type}:${ctx.path}` : ctx.type;
       // zustand setState accepts 3-arg form for devtools
