@@ -2,8 +2,10 @@
 node_modules/
 
 # Build outputs
-dist/
+# dist/ is committed so GitHub installs work without running tsup
 *.tsbuildinfo
+*.tsbuildinfo
+dist/*.tsbuildinfo
 
 # Demo (Vite)
 demo/dist/
