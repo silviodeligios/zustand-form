@@ -72,6 +72,11 @@ export function valuesEnhancer<TValues, TError = string>(
         const initial = getIn(defaultValues, ctx.path);
         return { ...draft, values: setIn(base, ctx.path, initial) };
       }
+      case A.SET_TREE_VALUE: {
+        const base = draft.values ?? prev.values;
+        if (!ctx.path) return { ...draft, values: ctx.value as TValues };
+        return { ...draft, values: setIn(base, ctx.path, ctx.value) };
+      }
       case A.RESET_BRANCH: {
         if (!ctx.path) return { ...draft, values: defaultValues };
         const base = draft.values ?? prev.values;

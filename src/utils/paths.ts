@@ -1,3 +1,15 @@
+/** Check if a dot-notation path exists as keys in the nested object */
+export function hasPath(obj: unknown, path: string): boolean {
+  const keys = path.split(".");
+  let current: unknown = obj;
+  for (const key of keys) {
+    if (current == null || typeof current !== "object") return false;
+    if (!(key in (current as Record<string, unknown>))) return false;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return true;
+}
+
 /** Deep get a value from an object using dot-notation path */
 export function getIn(obj: unknown, path: string): unknown {
   const keys = path.split(".");

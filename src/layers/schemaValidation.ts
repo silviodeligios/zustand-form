@@ -117,6 +117,19 @@ export function schemaValidationEnhancer<TValues, TError = string>(
         }
         return { ...draft, errors };
       }
+      case A.SET_TREE_VALUE: {
+        if (resolverMode !== "onChange") return draft;
+        const match = treeMatcher(ctx.path);
+        const values = draft.values ?? prev.values;
+        const allErrors = resolver.validate(values);
+        let errors = draft.errors ?? prev.errors;
+        for (const [path, error] of Object.entries(allErrors)) {
+          if (!match(path)) continue;
+          if (errors[path]) continue;
+          if (error) errors = { ...errors, [path]: error };
+        }
+        return { ...draft, errors };
+      }
       case A.VALIDATE_BRANCH: {
         const match = treeMatcher(ctx.path);
         const values = draft.values ?? prev.values;

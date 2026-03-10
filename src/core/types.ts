@@ -44,6 +44,7 @@ export type ActionType =
   | typeof A.CLEAR_ERRORS_BRANCH
   | typeof A.RESET_BRANCH
   | typeof A.VALIDATE_BRANCH
+  | typeof A.SET_TREE_VALUE
   | typeof A.ARRAY_APPEND
   | typeof A.ARRAY_REMOVE
   | typeof A.ARRAY_INSERT

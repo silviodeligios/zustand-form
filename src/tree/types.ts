@@ -14,6 +14,8 @@ export interface TreeNamespace<TValues, TError = string> {
   getErrors(path?: FieldPath<TValues>): Record<string, TError>;
   getDirtyFields(path?: FieldPath<TValues>): string[];
   getTouchedFields(path?: FieldPath<TValues>): string[];
+  setValue(value: TValues): void;
+  setValue(path: FieldPath<TValues>, value: unknown): void;
   clearErrors(path?: FieldPath<TValues>, options?: DispatchOptions): void;
   reset(path?: FieldPath<TValues>, options?: DispatchOptions): void;
   validate(path?: FieldPath<TValues>, options?: DispatchOptions): void;

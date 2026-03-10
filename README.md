@@ -365,6 +365,8 @@ form.tree.getDirtyFields("items");   // paths of dirty fields
 form.tree.getTouchedFields("items"); // paths of touched fields
 
 // Subtree mutations
+form.tree.setValue({ name: "Mario", email: "mario@example.com" }); // replace all form values
+form.tree.setValue("items", [{ title: "New" }]);                   // replace subtree
 form.tree.clearErrors("items");  // remove all errors under items.*
 form.tree.reset("items");        // reset values, dirty, touched, errors for subtree
 form.tree.validate("items");     // re-run sync + schema + async validation for subtree
@@ -377,6 +379,54 @@ form.tree.isValid();
 const errorCount = form(form.tree.select.errorCount("items"));
 const isValid = form(form.tree.select.valid());
 ```
+
+### `tree.setValue` — bulk value replacement with metadata cleanup
+
+Unlike `form.field.setValue`, which sets a single field and leaves orphaned metadata (errors, touched, dirty) behind when replacing a nested object, `tree.setValue` intelligently cleans up metadata for paths that no longer exist in the new value while preserving metadata for paths that survive.
+
+```ts
+// Replace the entire form
+form.tree.setValue({
+  name: "Mario",
+  email: "mario@example.com",
+  address: { street: "Via Roma", city: "Milano", zip: "20100" },
+  items: [{ title: "Item 1" }],
+});
+
+// Replace only a subtree — the rest of the form is untouched
+form.tree.setValue("address", {
+  street: "Via Garibaldi",
+  city: "Torino",
+  zip: "10100",
+});
+```
+
+**Metadata behavior:**
+
+| Metadata | Behavior |
+|----------|----------|
+| **touched** | Kept for paths that still exist, removed for orphaned paths |
+| **dirty** | Recalculated against `defaultValues` for surviving paths, removed for orphaned paths |
+| **errors** | Kept for surviving paths, removed for orphaned paths. Schema validation re-runs if configured with `onChange` mode |
+| **pending** | Kept for surviving paths, removed for orphaned paths. In-flight async validators cancelled for removed paths |
+
+**Array shrinking example:**
+
+```ts
+// Before: items = [{ title: "A" }, { title: "B" }, { title: "C" }]
+// touched: { "items.0.title": true, "items.1.title": true, "items.2.title": true }
+
+form.tree.setValue("items", [{ title: "A" }]);
+
+// After:
+// touched: { "items.0.title": true }
+// "items.1.title" and "items.2.title" metadata removed automatically
+```
+
+This is particularly useful when:
+- Loading data from an API into an existing form
+- Replacing a section of the form based on a user selection
+- Resetting part of the form to new values (not necessarily the defaults)
 
 ## It's just a Zustand store
 

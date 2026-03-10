@@ -15,6 +15,7 @@ export const RESET_FIELD = "RESET_FIELD" as const;
 export const CLEAR_ERRORS_BRANCH = "CLEAR_ERRORS_BRANCH" as const;
 export const RESET_BRANCH = "RESET_BRANCH" as const;
 export const VALIDATE_BRANCH = "VALIDATE_BRANCH" as const;
+export const SET_TREE_VALUE = "SET_TREE_VALUE" as const;
 
 // Async validation lifecycle
 export const ASYNC_RESOLVE = "ASYNC_RESOLVE" as const;

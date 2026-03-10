@@ -1,7 +1,7 @@
 import type { Enhancer, FormState } from "../core/types";
 import type { FieldRegistry } from "../validation/registry";
 import * as A from "../core/actions";
-import { getIn } from "../utils/paths";
+import { getIn, hasPath } from "../utils/paths";
 import { treeMatcher } from "../utils/tree";
 import { reindexPathKeyedRecord } from "../utils/arrayReindex";
 
@@ -163,6 +163,20 @@ export function validationEnhancer<TValues, TError = string>(
           errors = { ...errors, [path]: error };
         });
         return { ...draft, errors };
+      }
+      case A.SET_TREE_VALUE: {
+        const match = treeMatcher(ctx.path);
+        const base = draft.errors ?? prev.errors;
+        const newValues = draft.values ?? prev.values;
+        const next: Record<string, TError | undefined> = {};
+        for (const k of Object.keys(base)) {
+          if (!match(k)) {
+            next[k] = base[k];
+          } else if (hasPath(newValues, k)) {
+            next[k] = base[k];
+          }
+        }
+        return { ...draft, errors: next };
       }
       case A.RESET_BRANCH: {
         const match = treeMatcher(ctx.path);

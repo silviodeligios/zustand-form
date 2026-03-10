@@ -1,7 +1,7 @@
 import type { Enhancer, Dispatch } from "../../core/types";
 import type { FieldRegistry } from "../../validation/registry";
 import * as A from "../../core/actions";
-import { getIn } from "../../utils/paths";
+import { getIn, hasPath } from "../../utils/paths";
 import { treeMatcher } from "../../utils/tree";
 import { reindexPathKeyedRecord } from "../../utils/arrayReindex";
 import { triggerArrayAsync, runAsync } from "./utils";
@@ -192,6 +192,27 @@ export function asyncValidationEnhancer<TValues, TError = string>(
         const { [ctx.path]: _, ...rest } =
           draft.pendingFields ?? prev.pendingFields;
         return { ...draft, pendingFields: rest };
+      }
+      case A.SET_TREE_VALUE: {
+        const match = treeMatcher(ctx.path);
+        const newValues = draft.values ?? prev.values;
+        const all = registry.getAll();
+        for (const [path] of all) {
+          if (match(path) && !hasPath(newValues, path)) {
+            registry.nextVersion(path);
+            registry.clearTimer(path);
+          }
+        }
+        const base = draft.pendingFields ?? prev.pendingFields;
+        const next: Record<string, boolean> = {};
+        for (const k of Object.keys(base)) {
+          if (!match(k)) {
+            if (base[k] !== undefined) next[k] = base[k];
+          } else if (hasPath(newValues, k) && base[k] !== undefined) {
+            next[k] = base[k];
+          }
+        }
+        return { ...draft, pendingFields: next };
       }
       case A.RESET_BRANCH: {
         const match = treeMatcher(ctx.path);

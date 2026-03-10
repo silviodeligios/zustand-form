@@ -48,6 +48,13 @@ export function createTreeNamespace<TValues, TError = string>(
     getTouchedFields: (path?) =>
       Object.keys(s().touchedFields).filter(getMatcher(path)),
 
+    setValue: (...args: [unknown] | [string, unknown]) => {
+      if (typeof args[0] === "string") {
+        dispatch({ type: A.SET_TREE_VALUE, path: args[0], value: args[1] });
+      } else {
+        dispatch({ type: A.SET_TREE_VALUE, value: args[0] });
+      }
+    },
     clearErrors: (path?, opts?) =>
       dispatch({ type: A.CLEAR_ERRORS_BRANCH, path, options: opts }),
     reset: (path?, opts?) =>
