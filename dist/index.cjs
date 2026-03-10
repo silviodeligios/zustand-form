@@ -28,6 +28,7 @@ __export(actions_exports, {
   SET_DIRTY: () => SET_DIRTY,
   SET_ERROR: () => SET_ERROR,
   SET_TOUCHED: () => SET_TOUCHED,
+  SET_TREE_VALUE: () => SET_TREE_VALUE,
   SET_VALUE: () => SET_VALUE,
   SUBMIT: () => SUBMIT,
   SUBMIT_FAILURE: () => SUBMIT_FAILURE,
@@ -47,6 +48,7 @@ var RESET_FIELD = "RESET_FIELD";
 var CLEAR_ERRORS_BRANCH = "CLEAR_ERRORS_BRANCH";
 var RESET_BRANCH = "RESET_BRANCH";
 var VALIDATE_BRANCH = "VALIDATE_BRANCH";
+var SET_TREE_VALUE = "SET_TREE_VALUE";
 var ASYNC_RESOLVE = "ASYNC_RESOLVE";
 var ARRAY_APPEND = "ARRAY_APPEND";
 var ARRAY_REMOVE = "ARRAY_REMOVE";
@@ -60,6 +62,16 @@ var SUBMIT_SUCCESS = "SUBMIT_SUCCESS";
 var SUBMIT_FAILURE = "SUBMIT_FAILURE";
 
 // src/utils/paths.ts
+function hasPath(obj, path) {
+  const keys = path.split(".");
+  let current = obj;
+  for (const key of keys) {
+    if (current == null || typeof current !== "object") return false;
+    if (!(key in current)) return false;
+    current = current[key];
+  }
+  return true;
+}
 function getIn(obj, path) {
   const keys = path.split(".");
   let current = obj;
@@ -324,6 +336,13 @@ function createTreeNamespace(store, dispatch) {
     getErrors: (path) => filterErrors(s(), getMatcher(path)),
     getDirtyFields: (path) => Object.keys(s().dirtyFields).filter(getMatcher(path)),
     getTouchedFields: (path) => Object.keys(s().touchedFields).filter(getMatcher(path)),
+    setValue: (...args) => {
+      if (typeof args[0] === "string") {
+        dispatch({ type: SET_TREE_VALUE, path: args[0], value: args[1] });
+      } else {
+        dispatch({ type: SET_TREE_VALUE, value: args[0] });
+      }
+    },
     clearErrors: (path, opts) => dispatch({ type: CLEAR_ERRORS_BRANCH, path, options: opts }),
     reset: (path, opts) => dispatch({ type: RESET_BRANCH, path, options: opts }),
     validate: (path, opts) => dispatch({ type: VALIDATE_BRANCH, path, options: opts }),
@@ -566,6 +585,11 @@ function valuesEnhancer(defaultValues) {
         const initial = getIn(defaultValues, ctx.path);
         return { ...draft, values: setIn(base, ctx.path, initial) };
       }
+      case SET_TREE_VALUE: {
+        const base = draft.values ?? prev.values;
+        if (!ctx.path) return { ...draft, values: ctx.value };
+        return { ...draft, values: setIn(base, ctx.path, ctx.value) };
+      }
       case RESET_BRANCH: {
         if (!ctx.path) return { ...draft, values: defaultValues };
         const base = draft.values ?? prev.values;
@@ -665,6 +689,20 @@ function touchedEnhancer() {
         if (!ctx.path) return draft;
         const { [ctx.path]: _, ...rest } = draft.touchedFields ?? prev.touchedFields;
         return { ...draft, touchedFields: rest };
+      }
+      case SET_TREE_VALUE: {
+        const match = treeMatcher(ctx.path);
+        const base = draft.touchedFields ?? prev.touchedFields;
+        const newValues = draft.values ?? prev.values;
+        const next = {};
+        for (const k of Object.keys(base)) {
+          if (!match(k)) {
+            if (base[k] !== void 0) next[k] = base[k];
+          } else if (hasPath(newValues, k) && base[k] !== void 0) {
+            next[k] = base[k];
+          }
+        }
+        return { ...draft, touchedFields: next };
       }
       case RESET_BRANCH: {
         const match = treeMatcher(ctx.path);
@@ -780,6 +818,22 @@ function dirtyEnhancer(defaultValues) {
         if (!ctx.path) return draft;
         const { [ctx.path]: _, ...rest } = draft.dirtyFields ?? prev.dirtyFields;
         return { ...draft, dirtyFields: rest };
+      }
+      case SET_TREE_VALUE: {
+        const match = treeMatcher(ctx.path);
+        const base = draft.dirtyFields ?? prev.dirtyFields;
+        const newValues = draft.values ?? prev.values;
+        const next = {};
+        for (const k of Object.keys(base)) {
+          if (!match(k)) {
+            if (base[k] !== void 0) next[k] = base[k];
+          } else if (hasPath(newValues, k)) {
+            const current = getIn(newValues, k);
+            const initial = getIn(defaultValues, k);
+            if (!isEqual(current, initial)) next[k] = true;
+          }
+        }
+        return { ...draft, dirtyFields: next };
       }
       case RESET_BRANCH: {
         const match = treeMatcher(ctx.path);
@@ -942,6 +996,20 @@ function validationEnhancer(registry) {
         });
         return { ...draft, errors };
       }
+      case SET_TREE_VALUE: {
+        const match = treeMatcher(ctx.path);
+        const base = draft.errors ?? prev.errors;
+        const newValues = draft.values ?? prev.values;
+        const next = {};
+        for (const k of Object.keys(base)) {
+          if (!match(k)) {
+            next[k] = base[k];
+          } else if (hasPath(newValues, k)) {
+            next[k] = base[k];
+          }
+        }
+        return { ...draft, errors: next };
+      }
       case RESET_BRANCH: {
         const match = treeMatcher(ctx.path);
         const base = draft.errors ?? prev.errors;
@@ -1075,6 +1143,19 @@ function schemaValidationEnhancer(resolver, mode) {
         const allErrors = resolver.validate(values);
         let errors = draft.errors ?? prev.errors;
         for (const [path, error] of Object.entries(allErrors)) {
+          if (errors[path]) continue;
+          if (error) errors = { ...errors, [path]: error };
+        }
+        return { ...draft, errors };
+      }
+      case SET_TREE_VALUE: {
+        if (resolverMode !== "onChange") return draft;
+        const match = treeMatcher(ctx.path);
+        const values = draft.values ?? prev.values;
+        const allErrors = resolver.validate(values);
+        let errors = draft.errors ?? prev.errors;
+        for (const [path, error] of Object.entries(allErrors)) {
+          if (!match(path)) continue;
           if (errors[path]) continue;
           if (error) errors = { ...errors, [path]: error };
         }
@@ -1331,6 +1412,27 @@ function asyncValidationEnhancer(registry, dispatch) {
         if (!ctx.path) return draft;
         const { [ctx.path]: _, ...rest } = draft.pendingFields ?? prev.pendingFields;
         return { ...draft, pendingFields: rest };
+      }
+      case SET_TREE_VALUE: {
+        const match = treeMatcher(ctx.path);
+        const newValues = draft.values ?? prev.values;
+        const all = registry.getAll();
+        for (const [path] of all) {
+          if (match(path) && !hasPath(newValues, path)) {
+            registry.nextVersion(path);
+            registry.clearTimer(path);
+          }
+        }
+        const base = draft.pendingFields ?? prev.pendingFields;
+        const next = {};
+        for (const k of Object.keys(base)) {
+          if (!match(k)) {
+            if (base[k] !== void 0) next[k] = base[k];
+          } else if (hasPath(newValues, k) && base[k] !== void 0) {
+            next[k] = base[k];
+          }
+        }
+        return { ...draft, pendingFields: next };
       }
       case RESET_BRANCH: {
         const match = treeMatcher(ctx.path);

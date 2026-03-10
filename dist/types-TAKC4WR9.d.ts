@@ -23,6 +23,7 @@ declare const RESET_FIELD: "RESET_FIELD";
 declare const CLEAR_ERRORS_BRANCH: "CLEAR_ERRORS_BRANCH";
 declare const RESET_BRANCH: "RESET_BRANCH";
 declare const VALIDATE_BRANCH: "VALIDATE_BRANCH";
+declare const SET_TREE_VALUE: "SET_TREE_VALUE";
 declare const ASYNC_RESOLVE: "ASYNC_RESOLVE";
 declare const ARRAY_APPEND: "ARRAY_APPEND";
 declare const ARRAY_REMOVE: "ARRAY_REMOVE";
@@ -52,6 +53,7 @@ declare const actions_RESET_FORM: typeof RESET_FORM;
 declare const actions_SET_DIRTY: typeof SET_DIRTY;
 declare const actions_SET_ERROR: typeof SET_ERROR;
 declare const actions_SET_TOUCHED: typeof SET_TOUCHED;
+declare const actions_SET_TREE_VALUE: typeof SET_TREE_VALUE;
 declare const actions_SET_VALUE: typeof SET_VALUE;
 declare const actions_SUBMIT: typeof SUBMIT;
 declare const actions_SUBMIT_FAILURE: typeof SUBMIT_FAILURE;
@@ -59,7 +61,7 @@ declare const actions_SUBMIT_SUCCESS: typeof SUBMIT_SUCCESS;
 declare const actions_VALIDATE_BRANCH: typeof VALIDATE_BRANCH;
 declare const actions_VALIDATE_FIELD: typeof VALIDATE_FIELD;
 declare namespace actions {
-  export { actions_ARRAY_APPEND as ARRAY_APPEND, actions_ARRAY_INSERT as ARRAY_INSERT, actions_ARRAY_MOVE as ARRAY_MOVE, actions_ARRAY_REMOVE as ARRAY_REMOVE, actions_ARRAY_REPLACE as ARRAY_REPLACE, actions_ARRAY_SWAP as ARRAY_SWAP, actions_ASYNC_RESOLVE as ASYNC_RESOLVE, actions_BLUR as BLUR, actions_CLEAR_ERROR as CLEAR_ERROR, actions_CLEAR_ERRORS_BRANCH as CLEAR_ERRORS_BRANCH, actions_FOCUS as FOCUS, actions_RESET_BRANCH as RESET_BRANCH, actions_RESET_FIELD as RESET_FIELD, actions_RESET_FORM as RESET_FORM, actions_SET_DIRTY as SET_DIRTY, actions_SET_ERROR as SET_ERROR, actions_SET_TOUCHED as SET_TOUCHED, actions_SET_VALUE as SET_VALUE, actions_SUBMIT as SUBMIT, actions_SUBMIT_FAILURE as SUBMIT_FAILURE, actions_SUBMIT_SUCCESS as SUBMIT_SUCCESS, actions_VALIDATE_BRANCH as VALIDATE_BRANCH, actions_VALIDATE_FIELD as VALIDATE_FIELD };
+  export { actions_ARRAY_APPEND as ARRAY_APPEND, actions_ARRAY_INSERT as ARRAY_INSERT, actions_ARRAY_MOVE as ARRAY_MOVE, actions_ARRAY_REMOVE as ARRAY_REMOVE, actions_ARRAY_REPLACE as ARRAY_REPLACE, actions_ARRAY_SWAP as ARRAY_SWAP, actions_ASYNC_RESOLVE as ASYNC_RESOLVE, actions_BLUR as BLUR, actions_CLEAR_ERROR as CLEAR_ERROR, actions_CLEAR_ERRORS_BRANCH as CLEAR_ERRORS_BRANCH, actions_FOCUS as FOCUS, actions_RESET_BRANCH as RESET_BRANCH, actions_RESET_FIELD as RESET_FIELD, actions_RESET_FORM as RESET_FORM, actions_SET_DIRTY as SET_DIRTY, actions_SET_ERROR as SET_ERROR, actions_SET_TOUCHED as SET_TOUCHED, actions_SET_TREE_VALUE as SET_TREE_VALUE, actions_SET_VALUE as SET_VALUE, actions_SUBMIT as SUBMIT, actions_SUBMIT_FAILURE as SUBMIT_FAILURE, actions_SUBMIT_SUCCESS as SUBMIT_SUCCESS, actions_VALIDATE_BRANCH as VALIDATE_BRANCH, actions_VALIDATE_FIELD as VALIDATE_FIELD };
 }
 
 interface FieldState<TError = string> {
@@ -120,6 +122,8 @@ interface TreeNamespace<TValues, TError = string> {
     getErrors(path?: FieldPath$1<TValues>): Record<string, TError>;
     getDirtyFields(path?: FieldPath$1<TValues>): string[];
     getTouchedFields(path?: FieldPath$1<TValues>): string[];
+    setValue(value: TValues): void;
+    setValue(path: FieldPath$1<TValues>, value: unknown): void;
     clearErrors(path?: FieldPath$1<TValues>, options?: DispatchOptions): void;
     reset(path?: FieldPath$1<TValues>, options?: DispatchOptions): void;
     validate(path?: FieldPath$1<TValues>, options?: DispatchOptions): void;
@@ -200,7 +204,7 @@ interface FormState<TValues, TError = string> {
 interface DispatchOptions {
     disableLayers?: string[];
 }
-type ActionType = typeof SET_VALUE | typeof SET_ERROR | typeof CLEAR_ERROR | typeof SET_TOUCHED | typeof SET_DIRTY | typeof FOCUS | typeof BLUR | typeof VALIDATE_FIELD | typeof RESET_FIELD | typeof ASYNC_RESOLVE | typeof CLEAR_ERRORS_BRANCH | typeof RESET_BRANCH | typeof VALIDATE_BRANCH | typeof ARRAY_APPEND | typeof ARRAY_REMOVE | typeof ARRAY_INSERT | typeof ARRAY_MOVE | typeof ARRAY_SWAP | typeof ARRAY_REPLACE | typeof RESET_FORM | typeof SUBMIT | typeof SUBMIT_SUCCESS | typeof SUBMIT_FAILURE;
+type ActionType = typeof SET_VALUE | typeof SET_ERROR | typeof CLEAR_ERROR | typeof SET_TOUCHED | typeof SET_DIRTY | typeof FOCUS | typeof BLUR | typeof VALIDATE_FIELD | typeof RESET_FIELD | typeof ASYNC_RESOLVE | typeof CLEAR_ERRORS_BRANCH | typeof RESET_BRANCH | typeof VALIDATE_BRANCH | typeof SET_TREE_VALUE | typeof ARRAY_APPEND | typeof ARRAY_REMOVE | typeof ARRAY_INSERT | typeof ARRAY_MOVE | typeof ARRAY_SWAP | typeof ARRAY_REPLACE | typeof RESET_FORM | typeof SUBMIT | typeof SUBMIT_SUCCESS | typeof SUBMIT_FAILURE;
 interface ActionContext {
     type: ActionType;
     path?: string | undefined;
