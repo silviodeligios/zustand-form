@@ -60,14 +60,10 @@
   "author": "Silvio Deligios",
   "peerDependencies": {
     "react": ">=18.0.0",
-    "zod": ">=4.0.0",
     "zustand": ">=4.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
-      "optional": true
-    },
-    "zod": {
       "optional": true
     }
   },
