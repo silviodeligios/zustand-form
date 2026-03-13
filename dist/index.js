@@ -1738,8 +1738,19 @@ function submitEnhancer() {
         };
       case SUBMIT_SUCCESS:
         return { ...draft, isSubmitting: false, isSubmitSuccessful: true };
-      case SUBMIT_FAILURE:
-        return { ...draft, isSubmitting: false, isSubmitSuccessful: false };
+      case SUBMIT_FAILURE: {
+        const next = { ...draft, isSubmitting: false, isSubmitSuccessful: false };
+        if (ctx.value != null && typeof ctx.value === "object" && !Array.isArray(ctx.value)) {
+          const serverErrors = ctx.value;
+          const ak = draft.arrayKeys ?? prev.arrayKeys;
+          const errors = { ...draft.errors ?? prev.errors };
+          for (const [path, error] of Object.entries(serverErrors)) {
+            errors[indexPathToKeyPath(path, ak)] = error;
+          }
+          next.errors = errors;
+        }
+        return next;
+      }
       case RESET_FORM:
         return {
           ...draft,
@@ -1829,31 +1840,40 @@ function createForm(config) {
     submitCount: () => store.getState().submitCount,
     isSubmitSuccessful: () => store.getState().isSubmitSuccessful,
     reset: (nextValues, opts) => dispatch({ type: RESET_FORM, value: nextValues, options: opts }),
-    handleSubmit: (onValid, onInvalid) => (e) => {
-      e?.preventDefault();
-      dispatch({ type: SUBMIT });
-      const state = store.getState();
-      const errorKeys = Object.keys(state.errors).filter(
-        (k) => state.errors[k] !== void 0
-      );
-      if (errorKeys.length > 0) {
-        dispatch({ type: SUBMIT_FAILURE });
-        if (onInvalid) {
-          const errs = {};
-          for (const k of errorKeys) errs[k] = state.errors[k];
-          onInvalid(errs);
+    handleSubmit: (onValid, onInvalid) => {
+      function applyResult(res) {
+        if (res != null && typeof res === "object" && !Array.isArray(res)) {
+          dispatch({ type: SUBMIT_FAILURE, value: res });
+        } else {
+          dispatch({ type: SUBMIT_SUCCESS });
         }
-        return;
       }
-      const result = onValid(state.values);
-      if (isThenable(result)) {
-        return result.then(
-          () => dispatch({ type: SUBMIT_SUCCESS }),
-          () => dispatch({ type: SUBMIT_FAILURE })
+      return (e) => {
+        e?.preventDefault();
+        dispatch({ type: SUBMIT });
+        const state = store.getState();
+        const errorKeys = Object.keys(state.errors).filter(
+          (k) => state.errors[k] !== void 0
         );
-      } else {
-        dispatch({ type: SUBMIT_SUCCESS });
-      }
+        if (errorKeys.length > 0) {
+          dispatch({ type: SUBMIT_FAILURE });
+          if (onInvalid) {
+            const errs = {};
+            for (const k of errorKeys) errs[k] = state.errors[k];
+            onInvalid(errs);
+          }
+          return;
+        }
+        const result = onValid(state.values);
+        if (isThenable(result)) {
+          return Promise.resolve(result).then(
+            (res) => applyResult(res),
+            () => dispatch({ type: SUBMIT_FAILURE })
+          );
+        } else {
+          applyResult(result);
+        }
+      };
     },
     registerField: (path, entry) => {
       const kp = indexPathToKeyPath(path, store.getState().arrayKeys);

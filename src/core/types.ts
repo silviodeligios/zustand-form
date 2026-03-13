@@ -107,7 +107,12 @@ export interface Form<TValues, TError = string> {
   getValues(): TValues;
   reset(nextValues?: Partial<TValues>, options?: DispatchOptions): void;
   handleSubmit(
-    onValid: (values: TValues) => void | Promise<void>,
+    onValid: (
+      values: TValues,
+    ) =>
+      | void
+      | Record<string, TError>
+      | Promise<void | Record<string, TError>>,
     onInvalid?: (errors: Record<string, TError>) => void,
   ): (e?: Event) => void | Promise<void>;
   isSubmitting(): boolean;

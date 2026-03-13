@@ -137,31 +137,41 @@ export function createForm<TValues, TError = string>(
     isSubmitSuccessful: () => store.getState().isSubmitSuccessful,
     reset: (nextValues?, opts?) =>
       dispatch({ type: A.RESET_FORM, value: nextValues, options: opts }),
-    handleSubmit: (onValid, onInvalid?) => (e?: Event) => {
-      e?.preventDefault();
-      dispatch({ type: A.SUBMIT });
-      const state = store.getState();
-      const errorKeys = Object.keys(state.errors).filter(
-        (k) => state.errors[k] !== undefined,
-      );
-      if (errorKeys.length > 0) {
-        dispatch({ type: A.SUBMIT_FAILURE });
-        if (onInvalid) {
-          const errs: Record<string, TError> = {};
-          for (const k of errorKeys) errs[k] = state.errors[k]!;
-          onInvalid(errs);
+    handleSubmit: (onValid, onInvalid?) => {
+      function applyResult(res: unknown): void {
+        if (res != null && typeof res === "object" && !Array.isArray(res)) {
+          dispatch({ type: A.SUBMIT_FAILURE, value: res });
+        } else {
+          dispatch({ type: A.SUBMIT_SUCCESS });
         }
-        return;
       }
-      const result = onValid(state.values);
-      if (isThenable(result)) {
-        return result.then(
-          () => dispatch({ type: A.SUBMIT_SUCCESS }),
-          () => dispatch({ type: A.SUBMIT_FAILURE }),
+
+      return (e?: Event) => {
+        e?.preventDefault();
+        dispatch({ type: A.SUBMIT });
+        const state = store.getState();
+        const errorKeys = Object.keys(state.errors).filter(
+          (k) => state.errors[k] !== undefined,
         );
-      } else {
-        dispatch({ type: A.SUBMIT_SUCCESS });
-      }
+        if (errorKeys.length > 0) {
+          dispatch({ type: A.SUBMIT_FAILURE });
+          if (onInvalid) {
+            const errs: Record<string, TError> = {};
+            for (const k of errorKeys) errs[k] = state.errors[k]!;
+            onInvalid(errs);
+          }
+          return;
+        }
+        const result = onValid(state.values);
+        if (isThenable(result)) {
+          return Promise.resolve(result).then(
+            (res) => applyResult(res),
+            () => dispatch({ type: A.SUBMIT_FAILURE }),
+          );
+        } else {
+          applyResult(result);
+        }
+      };
     },
     registerField: (path, entry) => {
       const kp = indexPathToKeyPath(path, store.getState().arrayKeys);

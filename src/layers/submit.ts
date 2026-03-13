@@ -1,5 +1,6 @@
 import type { Enhancer } from "../core/types";
 import * as A from "../core/actions";
+import { indexPathToKeyPath } from "../utils/arrayKeys";
 
 export function submitEnhancer<TValues, TError = string>(): Enhancer<
   TValues,
@@ -16,8 +17,19 @@ export function submitEnhancer<TValues, TError = string>(): Enhancer<
         };
       case A.SUBMIT_SUCCESS:
         return { ...draft, isSubmitting: false, isSubmitSuccessful: true };
-      case A.SUBMIT_FAILURE:
-        return { ...draft, isSubmitting: false, isSubmitSuccessful: false };
+      case A.SUBMIT_FAILURE: {
+        const next = { ...draft, isSubmitting: false, isSubmitSuccessful: false };
+        if (ctx.value != null && typeof ctx.value === "object" && !Array.isArray(ctx.value)) {
+          const serverErrors = ctx.value as Record<string, TError>;
+          const ak = draft.arrayKeys ?? prev.arrayKeys;
+          const errors = { ...(draft.errors ?? prev.errors) };
+          for (const [path, error] of Object.entries(serverErrors)) {
+            errors[indexPathToKeyPath(path, ak)] = error;
+          }
+          next.errors = errors;
+        }
+        return next;
+      }
       case A.RESET_FORM:
         return {
           ...draft,

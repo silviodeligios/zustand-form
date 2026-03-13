@@ -1,6 +1,6 @@
 {
   "name": "zform",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A form library powered by Zustand — framework-agnostic core with React bindings",
   "type": "module",
   "main": "./dist/index.cjs",
