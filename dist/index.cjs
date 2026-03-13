@@ -1505,7 +1505,7 @@ function submitEnhancer() {
 
 // src/core/createForm.ts
 function createForm(config) {
-  const initialState = {
+  const baseInitialState = {
     values: {},
     dirtyFields: {},
     touchedFields: {},
@@ -1517,6 +1517,14 @@ function createForm(config) {
     isSubmitSuccessful: false,
     ...config.initialState
   };
+  const previewEnhancers = config.enhancers ? config.enhancers([]) : [];
+  let initialState = baseInitialState;
+  for (const e of previewEnhancers) {
+    if (e.initialState) {
+      const patch = typeof e.initialState === "function" ? e.initialState(initialState) : e.initialState;
+      initialState = { ...initialState, ...patch };
+    }
+  }
   const defaultValues = initialState.values;
   const initializer = () => initialState;
   const store = vanilla.createStore()(
@@ -1549,9 +1557,7 @@ function createForm(config) {
     },
     { name: "submit", enhancer: submitEnhancer() }
   ];
-  const enhancers = config.enhancers ? config.enhancers(defaultEnhancers).map(
-    (e) => typeof e === "function" ? { name: "", enhancer: e } : e
-  ) : defaultEnhancers;
+  const enhancers = config.enhancers ? config.enhancers(defaultEnhancers) : defaultEnhancers;
   function dispatch(ctx) {
     const prev = store.getState();
     let draft = {};

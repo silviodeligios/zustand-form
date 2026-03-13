@@ -3,7 +3,6 @@ import type {
   FormState,
   Form,
   ActionContext,
-  Enhancer,
   NamedEnhancer,
 } from "./types";
 import type { FormSelectors } from "./selectors";
@@ -29,7 +28,7 @@ export interface FormConfig<TValues, TError = string> {
   enhancers?:
     | ((
         defaults: NamedEnhancer<TValues, TError>[],
-      ) => (NamedEnhancer<TValues, TError> | Enhancer<TValues, TError>)[])
+      ) => NamedEnhancer<TValues, TError>[])
     | undefined;
   middleware?:
     | ((
@@ -41,7 +40,7 @@ export interface FormConfig<TValues, TError = string> {
 export function createForm<TValues, TError = string>(
   config: FormConfig<TValues, TError>,
 ): Form<TValues, TError> {
-  const initialState: FormState<TValues, TError> = {
+  const baseInitialState: FormState<TValues, TError> = {
     values: {} as TValues,
     dirtyFields: {},
     touchedFields: {},
@@ -53,6 +52,22 @@ export function createForm<TValues, TError = string>(
     isSubmitSuccessful: false,
     ...config.initialState,
   };
+
+  // Preview user enhancers (without defaults) to collect initialState contributions
+  // before building defaultEnhancers. This ensures defaultValues is correct for
+  // valuesEnhancer and dirtyEnhancer (e.g. reset will use the right values).
+  const previewEnhancers = config.enhancers ? config.enhancers([]) : [];
+  let initialState = baseInitialState;
+  for (const e of previewEnhancers) {
+    if (e.initialState) {
+      const patch =
+        typeof e.initialState === "function"
+          ? e.initialState(initialState)
+          : e.initialState;
+      initialState = { ...initialState, ...patch };
+    }
+  }
+
   const defaultValues = initialState.values;
 
   const initializer: StateCreator<FormState<TValues, TError>> = () =>
@@ -92,11 +107,7 @@ export function createForm<TValues, TError = string>(
   ];
 
   const enhancers: NamedEnhancer<TValues, TError>[] = config.enhancers
-    ? config
-        .enhancers(defaultEnhancers)
-        .map((e) =>
-          typeof e === "function" ? { name: "", enhancer: e } : e,
-        )
+    ? config.enhancers(defaultEnhancers)
     : defaultEnhancers;
 
   function dispatch(ctx: ActionContext): void {

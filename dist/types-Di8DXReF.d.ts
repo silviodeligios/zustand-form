@@ -221,6 +221,10 @@ type Enhancer<TValues, TError = string> = (ctx: ActionContext, prev: FormState<T
 interface NamedEnhancer<TValues, TError = string> {
     name: string;
     enhancer: Enhancer<TValues, TError>;
+    /** Optional initial state contribution. Applied in pipeline order at form creation time.
+     * Can be a partial state object or a function that receives the accumulated state so far
+     * and returns a partial patch — mirrors the draft pattern used at dispatch time. */
+    initialState?: Partial<FormState<TValues, TError>> | ((state: FormState<TValues, TError>) => Partial<FormState<TValues, TError>>);
 }
 interface Form<TValues, TError = string> {
     getState: StoreApi<FormState<TValues, TError>>["getState"];

@@ -1,12 +1,12 @@
-import { F as FormState, a as FormResolver, b as FieldValidateMode, N as NamedEnhancer, E as Enhancer, c as Form, d as FieldValidatorEntry, D as Dispatch } from './types-TAKC4WR9.cjs';
-export { A as ActionContext, e as ActionType, f as Actions, g as ArrayElement, h as DispatchOptions, i as FieldArrayItem, j as FieldArrayNamespace, k as FieldNamespace, l as FieldState, m as FormSelectors, I as InputProps, P as Path, n as PathValue, T as TreeNamespace } from './types-TAKC4WR9.cjs';
+import { F as FormState, a as FormResolver, b as FieldValidateMode, N as NamedEnhancer, c as Form, E as Enhancer, d as FieldValidatorEntry, D as Dispatch } from './types-Di8DXReF.cjs';
+export { A as ActionContext, e as ActionType, f as Actions, g as ArrayElement, h as DispatchOptions, i as FieldArrayItem, j as FieldArrayNamespace, k as FieldNamespace, l as FieldState, m as FormSelectors, I as InputProps, P as Path, n as PathValue, T as TreeNamespace } from './types-Di8DXReF.cjs';
 import { StateCreator } from 'zustand/vanilla';
 
 interface FormConfig<TValues, TError = string> {
     initialState: Partial<FormState<TValues, TError>>;
     resolver?: FormResolver<TValues, TError> | undefined;
     resolverMode?: FieldValidateMode | undefined;
-    enhancers?: ((defaults: NamedEnhancer<TValues, TError>[]) => (NamedEnhancer<TValues, TError> | Enhancer<TValues, TError>)[]) | undefined;
+    enhancers?: ((defaults: NamedEnhancer<TValues, TError>[]) => NamedEnhancer<TValues, TError>[]) | undefined;
     middleware?: ((initializer: StateCreator<FormState<TValues, TError>>) => StateCreator<FormState<TValues, TError>, any, any>) | undefined;
 }
 declare function createForm<TValues, TError = string>(config: FormConfig<TValues, TError>): Form<TValues, TError>;

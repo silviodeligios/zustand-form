@@ -1,4 +1,4 @@
-import { c as Form, F as FormState, i as FieldArrayItem, l as FieldState, h as DispatchOptions, d as FieldValidatorEntry, I as InputProps, a as FormResolver, b as FieldValidateMode, N as NamedEnhancer, E as Enhancer, P as Path, n as PathValue, g as ArrayElement } from '../types-TAKC4WR9.cjs';
+import { c as Form, F as FormState, i as FieldArrayItem, l as FieldState, h as DispatchOptions, d as FieldValidatorEntry, I as InputProps, a as FormResolver, b as FieldValidateMode, N as NamedEnhancer, P as Path, n as PathValue, g as ArrayElement } from '../types-Di8DXReF.cjs';
 import { StateCreator } from 'zustand/vanilla';
 import * as react from 'react';
 
@@ -38,7 +38,7 @@ interface UseFormConfig<TValues, TError = string> {
     defaultValues: TValues;
     resolver?: FormResolver<TValues, TError>;
     resolverMode?: FieldValidateMode;
-    enhancers?: (defaults: NamedEnhancer<TValues, TError>[]) => (NamedEnhancer<TValues, TError> | Enhancer<TValues, TError>)[];
+    enhancers?: (defaults: NamedEnhancer<TValues, TError>[]) => NamedEnhancer<TValues, TError>[];
     middleware?: (initializer: StateCreator<FormState<TValues, TError>>) => StateCreator<FormState<TValues, TError>, any, any>;
 }
 declare function useForm<TValues, TError = string>(config: UseFormConfig<TValues, TError>): FormHook<TValues, TError>;

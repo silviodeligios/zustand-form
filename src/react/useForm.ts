@@ -1,7 +1,7 @@
 import { useRef, useCallback } from "react";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { createForm } from "../core/createForm";
-import type { FormState, Form, Enhancer, NamedEnhancer } from "../core/types";
+import type { FormState, Form, NamedEnhancer } from "../core/types";
 import type { StateCreator } from "zustand/vanilla";
 import type { FormResolver, FieldValidateMode } from "../validation/types";
 import type { FormHook } from "./types";
@@ -12,7 +12,7 @@ export interface UseFormConfig<TValues, TError = string> {
   resolverMode?: FieldValidateMode;
   enhancers?: (
     defaults: NamedEnhancer<TValues, TError>[],
-  ) => (NamedEnhancer<TValues, TError> | Enhancer<TValues, TError>)[];
+  ) => NamedEnhancer<TValues, TError>[];
   middleware?: (
     initializer: StateCreator<FormState<TValues, TError>>,
   ) => StateCreator<FormState<TValues, TError>, any, any>;
