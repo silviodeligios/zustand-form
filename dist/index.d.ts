@@ -1,5 +1,5 @@
-import { F as FormState, a as FormResolver, b as FieldValidateMode, N as NamedEnhancer, c as Form, E as Enhancer, d as FieldValidatorEntry, D as Dispatch } from './types-Di8DXReF.js';
-export { A as ActionContext, e as ActionType, f as Actions, g as ArrayElement, h as DispatchOptions, i as FieldArrayItem, j as FieldArrayNamespace, k as FieldNamespace, l as FieldState, m as FormSelectors, I as InputProps, P as Path, n as PathValue, T as TreeNamespace } from './types-Di8DXReF.js';
+import { F as FormState, a as FormResolver, b as FieldValidateMode, N as NamedEnhancer, c as Form, E as Enhancer, d as FieldValidatorEntry, D as Dispatch } from './types-Mh_81LtP.js';
+export { A as ActionContext, e as ActionType, f as Actions, g as ArrayElement, h as DispatchOptions, i as FieldArrayItem, j as FieldArrayNamespace, k as FieldNamespace, l as FieldState, m as FormSelectors, I as InputProps, P as Path, n as PathValue, T as TreeNamespace } from './types-Mh_81LtP.js';
 import { StateCreator } from 'zustand/vanilla';
 
 interface FormConfig<TValues, TError = string> {
@@ -14,28 +14,11 @@ declare function createForm<TValues, TError = string>(config: FormConfig<TValues
 /** Deep get a value from an object using dot-notation path */
 declare function getIn(obj: unknown, path: string): unknown;
 
-declare function valuesEnhancer<TValues, TError = string>(defaultValues: TValues): Enhancer<TValues, TError>;
+declare function valuesEnhancer<TValues, TError = string>(defaultValues: TValues, initialArrayKeys: Record<string, string[]>): Enhancer<TValues, TError>;
 
 declare function touchedEnhancer<TValues, TError = string>(): Enhancer<TValues, TError>;
 
-declare function dirtyEnhancer<TValues, TError = string>(defaultValues: TValues): Enhancer<TValues, TError>;
-
-type ArrayReindexOp = {
-    type: "remove";
-    index: number;
-} | {
-    type: "insert";
-    index: number;
-} | {
-    type: "move";
-    from: number;
-    to: number;
-} | {
-    type: "swap";
-    from: number;
-    to: number;
-};
-declare function reindexPathKeyedRecord<T>(record: Record<string, T>, arrayPath: string, op: ArrayReindexOp): Record<string, T>;
+declare function dirtyEnhancer<TValues, TError = string>(defaultValues: TValues, initialArrayKeys: Record<string, string[]>): Enhancer<TValues, TError>;
 
 interface FieldRegistry<TError = string> {
     register(path: string, entry: FieldValidatorEntry<TError>): void;
@@ -50,17 +33,8 @@ interface FieldRegistry<TError = string> {
     setTimer(path: string, timer: ReturnType<typeof setTimeout>): void;
     /** Clear debounce timer for a path */
     clearTimer(path: string): void;
-    /** Reindex all internal maps after an array operation */
-    reindex(arrayPath: string, op: ArrayReindexOp): void;
-    /** Create an async session that tracks the current path across reindex ops */
-    createSession(path: string, version: number): number;
-    /** Get a session by ID (path may have been updated by reindex) */
-    getSession(id: number): {
-        path: string;
-        version: number;
-    } | undefined;
-    /** Delete a session */
-    deleteSession(id: number): void;
+    /** Remove all registry entries whose path starts with the given prefix */
+    removeByPrefix(prefix: string): void;
 }
 
 declare function validationEnhancer<TValues, TError = string>(registry: FieldRegistry<TError>): Enhancer<TValues, TError>;
@@ -70,6 +44,46 @@ declare function submitEnhancer<TValues, TError = string>(): Enhancer<TValues, T
 declare function schemaValidationEnhancer<TValues, TError = string>(resolver: FormResolver<TValues, TError>, mode?: FieldValidateMode): Enhancer<TValues, TError>;
 
 declare function asyncValidationEnhancer<TValues, TError = string>(registry: FieldRegistry<TError>, dispatch: Dispatch): Enhancer<TValues, TError>;
+
+/** Check if a path segment is a stable array key (e.g., "_k0", "_k42") */
+declare function isArrayKey(segment: string): boolean;
+/**
+ * Translate an index-based path to a key-based path for metadata lookups.
+ * Numeric segments that correspond to known arrays in arrayKeys are replaced
+ * with stable keys. Already key-based segments pass through unchanged.
+ *
+ * Example: "items.0.name" → "items._k0.name"
+ */
+declare function indexPathToKeyPath(path: string, arrayKeys: Record<string, string[]>): string;
+/**
+ * Translate a key-based path to an index-based path for value access.
+ * Stable key segments are replaced with their numeric index in the ordered
+ * arrayKeys array.
+ *
+ * Example: "items._k0.name" → "items.0.name"
+ */
+declare function keyPathToIndexPath(path: string, arrayKeys: Record<string, string[]>): string;
+/**
+ * Walk a value tree and build an arrayKeys map for all arrays found.
+ * Values are NOT modified — this only generates the key mapping.
+ * Key paths in arrayKeys use stable `_k` segments for array elements.
+ */
+declare function scanArrayKeys(value: unknown, parentKeyPath: string, startCounter: number): {
+    arrayKeys: Record<string, string[]>;
+    nextCounter: number;
+};
+/**
+ * Remove all entries from a Record whose key equals prefix or starts with prefix + ".".
+ * Returns the same reference if nothing was removed (fast early exit).
+ */
+declare function removeByPrefix<T>(record: Record<string, T>, keyPrefix: string): Record<string, T>;
+/** @deprecated Use `removeByPrefix` instead */
+declare const removeKeyedEntries: typeof removeByPrefix;
+/**
+ * Get a value at a key-based path by translating to index-based first.
+ * Shorthand for `getIn(values, keyPathToIndexPath(keyPath, arrayKeys))`.
+ */
+declare function getValueAtKeyPath(values: unknown, keyPath: string, arrayKeys: Record<string, string[]>): unknown;
 
 /** Minimal Standard Schema interface compatible with Zod 4, Valibot, ArkType, etc. */
 interface StandardSchemaIssue {
@@ -91,4 +105,4 @@ interface StandardSchema<T = unknown> {
 /** Creates a FormResolver from any Standard Schema (Zod 4, Valibot, ArkType, etc.) */
 declare function standardSchemaResolver<TValues>(schema: StandardSchema<TValues>): FormResolver<TValues>;
 
-export { type ArrayReindexOp, Dispatch, Enhancer, FieldValidateMode, FieldValidatorEntry, Form, type FormConfig, FormResolver, FormState, NamedEnhancer, asyncValidationEnhancer, createForm, dirtyEnhancer, getIn, reindexPathKeyedRecord, schemaValidationEnhancer, standardSchemaResolver, submitEnhancer, touchedEnhancer, validationEnhancer, valuesEnhancer };
+export { Dispatch, Enhancer, FieldValidateMode, FieldValidatorEntry, Form, type FormConfig, FormResolver, FormState, NamedEnhancer, asyncValidationEnhancer, createForm, dirtyEnhancer, getIn, getValueAtKeyPath, indexPathToKeyPath, isArrayKey, keyPathToIndexPath, removeByPrefix, removeKeyedEntries, scanArrayKeys, schemaValidationEnhancer, standardSchemaResolver, submitEnhancer, touchedEnhancer, validationEnhancer, valuesEnhancer };

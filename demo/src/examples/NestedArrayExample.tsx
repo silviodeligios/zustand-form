@@ -19,6 +19,7 @@ const btnStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 const dangerBtn: React.CSSProperties = { ...btnStyle, color: "#c00", borderColor: "#c00" };
+const sortBtn: React.CSSProperties = { ...btnStyle, color: "#7c3aed", borderColor: "#7c3aed" };
 
 // ---------------------------------------------------------------------------
 // Item row: TextField + array action buttons
@@ -66,7 +67,7 @@ const SectionBlock = memo(function SectionBlock({
   isLast: boolean;
 }) {
   const itemsPath = `sections.${sectionIndex}.items`;
-  const { fields: items, append: appendItem } =
+  const { fields: items, append: appendItem, sort: sortItems } =
     useFieldArray<FormValues>(form, itemsPath);
 
   return (
@@ -97,13 +98,27 @@ const SectionBlock = memo(function SectionBlock({
             isLast={item.index === items.length - 1}
           />
         ))}
-        <button
-          type="button"
-          onClick={() => appendItem({ label: "" })}
-          style={{ ...btnStyle, alignSelf: "flex-start", color: "#059669", borderColor: "#059669" }}
-        >
-          + Add item
-        </button>
+        <div style={{ display: "flex", gap: 8, alignSelf: "flex-start" }}>
+          <button
+            type="button"
+            onClick={() => appendItem({ label: "" })}
+            style={{ ...btnStyle, color: "#059669", borderColor: "#059669" }}
+          >
+            + Add item
+          </button>
+          <button
+            type="button"
+            onClick={() => sortItems((a: unknown, b: unknown) => {
+              const la = ((a as { label?: string })?.label ?? "").toLowerCase();
+              const lb = ((b as { label?: string })?.label ?? "").toLowerCase();
+              return la.localeCompare(lb);
+            })}
+            style={sortBtn}
+            title="Sort items alphabetically"
+          >
+            Sort A→Z
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -120,7 +135,7 @@ export default function NestedArrayExample({ form }: { form: FormStore }) {
     return checkSectionsMaxLength(value).finally(() => setIsCalling(false));
   }, []);
 
-  const { fields: sections, append: appendSection, fieldState } =
+  const { fields: sections, append: appendSection, sort: sortSections, fieldState } =
     useFieldArray<FormValues>(form, "sections", {
       validate: validateSectionsMinLength,
       asyncValidate,
@@ -143,20 +158,33 @@ export default function NestedArrayExample({ form }: { form: FormStore }) {
             isLast={sec.index === sections.length - 1}
           />
         ))}
-        <button
-          type="button"
-          disabled={fieldState.pending}
-          onClick={() => appendSection({ title: "", items: [{ label: "" }] })}
-          style={{
-            ...btnStyle,
-            alignSelf: "flex-start",
-            color: fieldState.pending ? "#999" : "#2563eb",
-            borderColor: fieldState.pending ? "#ccc" : "#2563eb",
-            padding: "6px 12px",
-          }}
-        >
-          {fieldState.pending ? "⏳ Validating..." : "+ Add section"}
-        </button>
+        <div style={{ display: "flex", gap: 8, alignSelf: "flex-start" }}>
+          <button
+            type="button"
+            disabled={fieldState.pending}
+            onClick={() => appendSection({ title: "", items: [{ label: "" }] })}
+            style={{
+              ...btnStyle,
+              color: fieldState.pending ? "#999" : "#2563eb",
+              borderColor: fieldState.pending ? "#ccc" : "#2563eb",
+              padding: "6px 12px",
+            }}
+          >
+            {fieldState.pending ? "⏳ Validating..." : "+ Add section"}
+          </button>
+          <button
+            type="button"
+            onClick={() => sortSections((a: unknown, b: unknown) => {
+              const ta = ((a as { title?: string })?.title ?? "").toLowerCase();
+              const tb = ((b as { title?: string })?.title ?? "").toLowerCase();
+              return ta.localeCompare(tb);
+            })}
+            style={{ ...sortBtn, padding: "6px 12px" }}
+            title="Sort sections alphabetically"
+          >
+            Sort A→Z
+          </button>
+        </div>
       </div>
 
       {/* Field array state panel */}

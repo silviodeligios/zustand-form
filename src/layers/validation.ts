@@ -1,9 +1,9 @@
 import type { Enhancer, FormState } from "../core/types";
 import type { FieldRegistry } from "../validation/registry";
 import * as A from "../core/actions";
-import { getIn, hasPath } from "../utils/paths";
+import { hasPath } from "../utils/paths";
 import { treeMatcher } from "../utils/tree";
-import { reindexPathKeyedRecord } from "../utils/arrayReindex";
+import { removeByPrefix, getValueAtKeyPath, keyPathToIndexPath } from "../utils/arrayKeys";
 
 function validateArrayPath<TValues, TError>(
   errors: Record<string, TError | undefined>,
@@ -15,7 +15,8 @@ function validateArrayPath<TValues, TError>(
   const entry = registry.get(path);
   if (entry?.validate && (entry.validateMode ?? "onChange") === "onChange") {
     const values = draft.values ?? prev.values;
-    const error = entry.validate(getIn(values, path));
+    const ak = draft.arrayKeys ?? prev.arrayKeys;
+    const error = entry.validate(getValueAtKeyPath(values, path, ak));
     return { ...draft, errors: { ...errors, [path]: error } };
   }
   return { ...draft, errors };
@@ -35,7 +36,8 @@ export function validationEnhancer<TValues, TError = string>(
         )
           return draft;
         const values = draft.values ?? prev.values;
-        const error = entry.validate(getIn(values, ctx.path));
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const error = entry.validate(getValueAtKeyPath(values, ctx.path, ak));
         const base = draft.errors ?? prev.errors;
         return { ...draft, errors: { ...base, [ctx.path]: error } };
       }
@@ -44,7 +46,8 @@ export function validationEnhancer<TValues, TError = string>(
         const entry = registry.get(ctx.path);
         if (!entry?.validate || entry.validateMode !== "onBlur") return draft;
         const values = draft.values ?? prev.values;
-        const error = entry.validate(getIn(values, ctx.path));
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const error = entry.validate(getValueAtKeyPath(values, ctx.path, ak));
         const base = draft.errors ?? prev.errors;
         return { ...draft, errors: { ...base, [ctx.path]: error } };
       }
@@ -65,13 +68,20 @@ export function validationEnhancer<TValues, TError = string>(
       case A.ASYNC_RESOLVE: {
         if (!ctx.path) return draft;
         const pending = draft.pendingFields ?? prev.pendingFields;
-        if (!pending[ctx.path]) return draft;
         const base = draft.errors ?? prev.errors;
-        if (ctx.value)
+
+        if (ctx.value) {
+          // Async returned an error: only apply if still pending (stale guard)
+          if (!pending[ctx.path]) return draft;
           return {
             ...draft,
             errors: { ...base, [ctx.path]: ctx.value as TError },
           };
+        }
+
+        // Clear error (async resolved clean, or unregister cleanup).
+        // Always allow: unmounted fields need orphaned errors removed.
+        if (base[ctx.path] === undefined) return draft;
         const { [ctx.path]: _, ...rest } = base;
         return { ...draft, errors: rest };
       }
@@ -89,7 +99,8 @@ export function validationEnhancer<TValues, TError = string>(
         const entry = registry.get(ctx.path);
         if (!entry?.validate) return draft;
         const values = draft.values ?? prev.values;
-        const error = entry.validate(getIn(values, ctx.path));
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const error = entry.validate(getValueAtKeyPath(values, ctx.path, ak));
         const base = draft.errors ?? prev.errors;
         return { ...draft, errors: { ...base, [ctx.path]: error } };
       }
@@ -105,60 +116,44 @@ export function validationEnhancer<TValues, TError = string>(
       }
       case A.ARRAY_REMOVE: {
         if (!ctx.path) return draft;
-        const errors = reindexPathKeyedRecord(
-          draft.errors ?? prev.errors,
-          ctx.path,
-          { type: "remove", index: ctx.index! },
-        );
+        const prevKeys = prev.arrayKeys[ctx.path] ?? [];
+        const removedKey = prevKeys[ctx.index!];
+        let errors = draft.errors ?? prev.errors;
+        if (removedKey) {
+          errors = removeByPrefix(errors, ctx.path + "." + removedKey);
+        }
         return validateArrayPath(errors, draft, prev, ctx.path, registry);
       }
       case A.ARRAY_INSERT: {
         if (!ctx.path) return draft;
-        const errors = reindexPathKeyedRecord(
+        return validateArrayPath(
           draft.errors ?? prev.errors,
+          draft,
+          prev,
           ctx.path,
-          { type: "insert", index: ctx.index! },
+          registry,
         );
-        return validateArrayPath(errors, draft, prev, ctx.path, registry);
       }
-      case A.ARRAY_MOVE: {
+      case A.ARRAY_MOVE:
+      case A.ARRAY_SWAP:
+      case A.ARRAY_SORT: {
         if (!ctx.path) return draft;
-        const errors = reindexPathKeyedRecord(
+        return validateArrayPath(
           draft.errors ?? prev.errors,
+          draft,
+          prev,
           ctx.path,
-          { type: "move", from: ctx.from!, to: ctx.to! },
+          registry,
         );
-        return validateArrayPath(errors, draft, prev, ctx.path, registry);
-      }
-      case A.ARRAY_SWAP: {
-        if (!ctx.path) return draft;
-        const errors = reindexPathKeyedRecord(
-          draft.errors ?? prev.errors,
-          ctx.path,
-          { type: "swap", from: ctx.from!, to: ctx.to! },
-        );
-        return validateArrayPath(errors, draft, prev, ctx.path, registry);
-      }
-      case A.ARRAY_REPLACE: {
-        if (!ctx.path) return draft;
-        const prefix = ctx.path + ".";
-        let errors = draft.errors ?? prev.errors;
-        if (Object.keys(errors).some((k) => k.startsWith(prefix))) {
-          const next: Record<string, TError | undefined> = {};
-          for (const k of Object.keys(errors)) {
-            if (!k.startsWith(prefix)) next[k] = errors[k];
-          }
-          errors = next;
-        }
-        return validateArrayPath(errors, draft, prev, ctx.path, registry);
       }
       case A.SUBMIT: {
         let errors = draft.errors ?? prev.errors;
         const values = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         const all = registry.getAll();
         all.forEach((entry, path) => {
           const error = entry.validate
-            ? entry.validate(getIn(values, path))
+            ? entry.validate(getValueAtKeyPath(values, path, ak))
             : undefined;
           errors = { ...errors, [path]: error };
         });
@@ -168,12 +163,16 @@ export function validationEnhancer<TValues, TError = string>(
         const match = treeMatcher(ctx.path);
         const base = draft.errors ?? prev.errors;
         const newValues = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         const next: Record<string, TError | undefined> = {};
         for (const k of Object.keys(base)) {
           if (!match(k)) {
             next[k] = base[k];
-          } else if (hasPath(newValues, k)) {
-            next[k] = base[k];
+          } else {
+            const idxPath = keyPathToIndexPath(k, ak);
+            if (hasPath(newValues, idxPath)) {
+              next[k] = base[k];
+            }
           }
         }
         return { ...draft, errors: next };
@@ -191,11 +190,12 @@ export function validationEnhancer<TValues, TError = string>(
         const match = treeMatcher(ctx.path);
         let errors = draft.errors ?? prev.errors;
         const values = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         const all = registry.getAll();
         for (const [path, entry] of all) {
           if (!match(path)) continue;
           const error = entry.validate
-            ? entry.validate(getIn(values, path))
+            ? entry.validate(getValueAtKeyPath(values, path, ak))
             : undefined;
           errors = { ...errors, [path]: error };
         }

@@ -30,7 +30,7 @@ declare const ARRAY_REMOVE: "ARRAY_REMOVE";
 declare const ARRAY_INSERT: "ARRAY_INSERT";
 declare const ARRAY_MOVE: "ARRAY_MOVE";
 declare const ARRAY_SWAP: "ARRAY_SWAP";
-declare const ARRAY_REPLACE: "ARRAY_REPLACE";
+declare const ARRAY_SORT: "ARRAY_SORT";
 declare const RESET_FORM: "RESET_FORM";
 declare const SUBMIT: "SUBMIT";
 declare const SUBMIT_SUCCESS: "SUBMIT_SUCCESS";
@@ -40,7 +40,7 @@ declare const actions_ARRAY_APPEND: typeof ARRAY_APPEND;
 declare const actions_ARRAY_INSERT: typeof ARRAY_INSERT;
 declare const actions_ARRAY_MOVE: typeof ARRAY_MOVE;
 declare const actions_ARRAY_REMOVE: typeof ARRAY_REMOVE;
-declare const actions_ARRAY_REPLACE: typeof ARRAY_REPLACE;
+declare const actions_ARRAY_SORT: typeof ARRAY_SORT;
 declare const actions_ARRAY_SWAP: typeof ARRAY_SWAP;
 declare const actions_ASYNC_RESOLVE: typeof ASYNC_RESOLVE;
 declare const actions_BLUR: typeof BLUR;
@@ -61,7 +61,7 @@ declare const actions_SUBMIT_SUCCESS: typeof SUBMIT_SUCCESS;
 declare const actions_VALIDATE_BRANCH: typeof VALIDATE_BRANCH;
 declare const actions_VALIDATE_FIELD: typeof VALIDATE_FIELD;
 declare namespace actions {
-  export { actions_ARRAY_APPEND as ARRAY_APPEND, actions_ARRAY_INSERT as ARRAY_INSERT, actions_ARRAY_MOVE as ARRAY_MOVE, actions_ARRAY_REMOVE as ARRAY_REMOVE, actions_ARRAY_REPLACE as ARRAY_REPLACE, actions_ARRAY_SWAP as ARRAY_SWAP, actions_ASYNC_RESOLVE as ASYNC_RESOLVE, actions_BLUR as BLUR, actions_CLEAR_ERROR as CLEAR_ERROR, actions_CLEAR_ERRORS_BRANCH as CLEAR_ERRORS_BRANCH, actions_FOCUS as FOCUS, actions_RESET_BRANCH as RESET_BRANCH, actions_RESET_FIELD as RESET_FIELD, actions_RESET_FORM as RESET_FORM, actions_SET_DIRTY as SET_DIRTY, actions_SET_ERROR as SET_ERROR, actions_SET_TOUCHED as SET_TOUCHED, actions_SET_TREE_VALUE as SET_TREE_VALUE, actions_SET_VALUE as SET_VALUE, actions_SUBMIT as SUBMIT, actions_SUBMIT_FAILURE as SUBMIT_FAILURE, actions_SUBMIT_SUCCESS as SUBMIT_SUCCESS, actions_VALIDATE_BRANCH as VALIDATE_BRANCH, actions_VALIDATE_FIELD as VALIDATE_FIELD };
+  export { actions_ARRAY_APPEND as ARRAY_APPEND, actions_ARRAY_INSERT as ARRAY_INSERT, actions_ARRAY_MOVE as ARRAY_MOVE, actions_ARRAY_REMOVE as ARRAY_REMOVE, actions_ARRAY_SORT as ARRAY_SORT, actions_ARRAY_SWAP as ARRAY_SWAP, actions_ASYNC_RESOLVE as ASYNC_RESOLVE, actions_BLUR as BLUR, actions_CLEAR_ERROR as CLEAR_ERROR, actions_CLEAR_ERRORS_BRANCH as CLEAR_ERRORS_BRANCH, actions_FOCUS as FOCUS, actions_RESET_BRANCH as RESET_BRANCH, actions_RESET_FIELD as RESET_FIELD, actions_RESET_FORM as RESET_FORM, actions_SET_DIRTY as SET_DIRTY, actions_SET_ERROR as SET_ERROR, actions_SET_TOUCHED as SET_TOUCHED, actions_SET_TREE_VALUE as SET_TREE_VALUE, actions_SET_VALUE as SET_VALUE, actions_SUBMIT as SUBMIT, actions_SUBMIT_FAILURE as SUBMIT_FAILURE, actions_SUBMIT_SUCCESS as SUBMIT_SUCCESS, actions_VALIDATE_BRANCH as VALIDATE_BRANCH, actions_VALIDATE_FIELD as VALIDATE_FIELD };
 }
 
 interface FieldState<TError = string> {
@@ -148,6 +148,7 @@ type Selector<TValues, TError, R> = (s: FormState<TValues, TError>) => R;
 type FieldPath<TValues> = Path<TValues> | (string & Record<never, never>);
 interface FieldArrayNamespace<TValues, TError = string> {
     getLength(path: FieldPath<TValues>): number;
+    getKeys(path: FieldPath<TValues>): string[];
     append<P extends Path<TValues>>(path: P, value: ArrayElement<PathValue<TValues, P>>, options?: DispatchOptions): void;
     append(path: string, value: unknown, options?: DispatchOptions): void;
     prepend<P extends Path<TValues>>(path: P, value: ArrayElement<PathValue<TValues, P>>, options?: DispatchOptions): void;
@@ -159,8 +160,11 @@ interface FieldArrayNamespace<TValues, TError = string> {
     replace<P extends Path<TValues>>(path: P, value: PathValue<TValues, P>, options?: DispatchOptions): void;
     replace(path: string, value: unknown, options?: DispatchOptions): void;
     swap(path: FieldPath<TValues>, indexA: number, indexB: number, options?: DispatchOptions): void;
+    sort(path: FieldPath<TValues>, comparator: (a: unknown, b: unknown) => number, options?: DispatchOptions): void;
+    reorder(path: FieldPath<TValues>, permutation: number[], options?: DispatchOptions): void;
     select: {
         length(path: FieldPath<TValues>): Selector<TValues, TError, number>;
+        keys(path: FieldPath<TValues>): Selector<TValues, TError, string[]>;
     };
 }
 
@@ -192,6 +196,8 @@ interface FormResolver<TValues, TError = string> {
 
 interface FormState<TValues, TError = string> {
     values: TValues;
+    arrayKeys: Record<string, string[]>;
+    _keyCounter: number;
     dirtyFields: Record<string, boolean>;
     touchedFields: Record<string, boolean>;
     errors: Record<string, TError | undefined>;
@@ -204,7 +210,7 @@ interface FormState<TValues, TError = string> {
 interface DispatchOptions {
     disableLayers?: string[];
 }
-type ActionType = typeof SET_VALUE | typeof SET_ERROR | typeof CLEAR_ERROR | typeof SET_TOUCHED | typeof SET_DIRTY | typeof FOCUS | typeof BLUR | typeof VALIDATE_FIELD | typeof RESET_FIELD | typeof ASYNC_RESOLVE | typeof CLEAR_ERRORS_BRANCH | typeof RESET_BRANCH | typeof VALIDATE_BRANCH | typeof SET_TREE_VALUE | typeof ARRAY_APPEND | typeof ARRAY_REMOVE | typeof ARRAY_INSERT | typeof ARRAY_MOVE | typeof ARRAY_SWAP | typeof ARRAY_REPLACE | typeof RESET_FORM | typeof SUBMIT | typeof SUBMIT_SUCCESS | typeof SUBMIT_FAILURE;
+type ActionType = typeof SET_VALUE | typeof SET_ERROR | typeof CLEAR_ERROR | typeof SET_TOUCHED | typeof SET_DIRTY | typeof FOCUS | typeof BLUR | typeof VALIDATE_FIELD | typeof RESET_FIELD | typeof ASYNC_RESOLVE | typeof CLEAR_ERRORS_BRANCH | typeof RESET_BRANCH | typeof VALIDATE_BRANCH | typeof SET_TREE_VALUE | typeof ARRAY_APPEND | typeof ARRAY_REMOVE | typeof ARRAY_INSERT | typeof ARRAY_MOVE | typeof ARRAY_SWAP | typeof ARRAY_SORT | typeof RESET_FORM | typeof SUBMIT | typeof SUBMIT_SUCCESS | typeof SUBMIT_FAILURE;
 interface ActionContext {
     type: ActionType;
     path?: string | undefined;
@@ -212,6 +218,7 @@ interface ActionContext {
     index?: number | undefined;
     from?: number | undefined;
     to?: number | undefined;
+    permutation?: number[] | undefined;
     options?: DispatchOptions | undefined;
 }
 type Dispatch = (ctx: ActionContext) => void;

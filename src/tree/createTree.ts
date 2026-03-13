@@ -3,6 +3,7 @@ import type { FormState, Dispatch } from "../core/types";
 import type { TreeNamespace } from "./types";
 import * as A from "../core/actions";
 import { treeMatcher } from "../utils/tree";
+import { indexPathToKeyPath } from "../utils/arrayKeys";
 import { createTreeSelectors } from "./selectors";
 
 export function createTreeNamespace<TValues, TError = string>(
@@ -22,6 +23,12 @@ export function createTreeNamespace<TValues, TError = string>(
     return m;
   }
 
+  /** Normalize an index-based path to key-based, then get a cached matcher. */
+  function matchFor(path: string | undefined, ak: Record<string, string[]>) {
+    const kp = path ? indexPathToKeyPath(path, ak) : path;
+    return getMatcher(kp);
+  }
+
   function filterErrors(
     state: FormState<TValues, TError>,
     match: (k: string) => boolean,
@@ -35,18 +42,37 @@ export function createTreeNamespace<TValues, TError = string>(
   }
 
   return {
-    isDirty: (path?) => Object.keys(s().dirtyFields).some(getMatcher(path)),
-    isTouched: (path?) => Object.keys(s().touchedFields).some(getMatcher(path)),
-    isPending: (path?) => Object.keys(s().pendingFields).some(getMatcher(path)),
-    isValid: (path?) =>
-      !Object.keys(s().errors).some(
-        (k) => getMatcher(path)(k) && s().errors[k] !== undefined,
-      ),
-    getErrors: (path?) => filterErrors(s(), getMatcher(path)),
-    getDirtyFields: (path?) =>
-      Object.keys(s().dirtyFields).filter(getMatcher(path)),
-    getTouchedFields: (path?) =>
-      Object.keys(s().touchedFields).filter(getMatcher(path)),
+    isDirty: (path?) => {
+      const state = s();
+      return Object.keys(state.dirtyFields).some(matchFor(path, state.arrayKeys));
+    },
+    isTouched: (path?) => {
+      const state = s();
+      return Object.keys(state.touchedFields).some(matchFor(path, state.arrayKeys));
+    },
+    isPending: (path?) => {
+      const state = s();
+      return Object.keys(state.pendingFields).some(matchFor(path, state.arrayKeys));
+    },
+    isValid: (path?) => {
+      const state = s();
+      const match = matchFor(path, state.arrayKeys);
+      return !Object.keys(state.errors).some(
+        (k) => match(k) && state.errors[k] !== undefined,
+      );
+    },
+    getErrors: (path?) => {
+      const state = s();
+      return filterErrors(state, matchFor(path, state.arrayKeys));
+    },
+    getDirtyFields: (path?) => {
+      const state = s();
+      return Object.keys(state.dirtyFields).filter(matchFor(path, state.arrayKeys));
+    },
+    getTouchedFields: (path?) => {
+      const state = s();
+      return Object.keys(state.touchedFields).filter(matchFor(path, state.arrayKeys));
+    },
 
     setValue: (...args: [unknown] | [string, unknown]) => {
       if (typeof args[0] === "string") {

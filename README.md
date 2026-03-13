@@ -18,7 +18,7 @@ I've used [React Hook Form](https://react-hook-form.com/) in every project I've 
 
 **Weak tree operations.** In RHF you can read values by path, but there's no way to query a subtree for errors, dirty fields, or pending validations. zForm provides a `tree` namespace: `form.tree.isDirty("items")`, `form.tree.isValid("items")`, `form.tree.getErrors("items")`, `form.tree.reset("items")` — all operating on a path and every descendant beneath it.
 
-**Array reindexing without session tracking.** Both libraries reindex path-keyed records (errors, touched) when array elements move. But zForm also tracks in-flight async validation sessions — if an element moves from index 2 to index 1 while its async validator is running, the result lands at the correct new path.
+**Stable array element identity.** RHF reindexes path-keyed records (errors, touched) when array elements move — a brittle operation that can lose state. zForm assigns each array element a stable key (`_k0`, `_k1`, …) stored in `arrayKeys`. Metadata is keyed by stable paths (`items._k0.name`), so moving, swapping, or sorting elements never causes reindexing. In-flight async validation sessions follow the element, not the index.
 
 | | React Hook Form | zForm |
 |---|---|---|
@@ -28,13 +28,13 @@ I've used [React Hook Form](https://react-hook-form.com/) in every project I've 
 | Internal state | Refs + proxy `formState` | Zustand store: `getState()`, `subscribe()`, devtools |
 | Extensibility | Resolvers only | Pluggable enhancer pipeline |
 | Tree operations | `getValues(path)` | `isDirty`, `isValid`, `getErrors`, `reset`, `validate` on any subtree |
-| Array reindex | Errors/touched reindexed | + async session path tracking |
+| Array identity | Reindex on move/remove | Stable keys — no reindex, async follows element |
 | Framework | React only | Vanilla core, React hooks separate |
 
 ## Try the demo
 
 ```bash
-git clone https://github.com/user/zustand-form.git && cd zustand-form
+git clone https://github.com/silviodeligios/zustand-form.git && cd zustand-form
 npm install
 npm run demo
 # opens http://localhost:5173
@@ -57,6 +57,14 @@ zustand vanilla store
 ```
 
 When an action is dispatched, every enhancer runs in order against the same `prev` snapshot. Each enhancer reads what previous layers wrote in the `draft`. At the end, one `store.setState(draft)` commits everything atomically — no intermediate states, one subscription notification, one React render.
+
+### Hybrid state model
+
+`state.values` always contains **real arrays** — `getValues()` returns exactly what you'd send to an API, no internal format to unwrap. Debugging in devtools or logging state shows the data as-is.
+
+Metadata (`errors`, `dirtyFields`, `touchedFields`, `pendingFields`) is keyed by **stable paths** using `arrayKeys`. Each array element gets a persistent key (e.g. `_k0`, `_k1`) that survives moves, swaps, and sorts. When you move element 0 to position 2, its error at `items._k0.name` stays — no reindexing.
+
+Path translation is transparent: `dispatch` normalizes user-supplied index paths (`items.0.name`) to key paths (`items._k0.name`) automatically. Selectors and `getValue` translate back. You never need to work with key paths directly.
 
 ## Quick start
 
@@ -239,7 +247,7 @@ The resolver reads the `~standard` interface at runtime, so it has **zero depend
 
 ## Arrays
 
-`useFieldArray` returns mutation methods that automatically reindex all path-keyed records (dirty, errors, touched, pending). Each item has a stable `id` for React keys and an `index` for path construction.
+`useFieldArray` returns mutation methods and a `fields` array. Each item carries a stable `id` (the array key) for React keys and an `index` for path construction. Because metadata uses stable keys internally, moving or removing elements never causes reindexing.
 
 Both signatures are supported:
 
@@ -257,7 +265,7 @@ const { fields, append, remove, move } = useFieldArray("sections");
 ))}
 ```
 
-Available methods: `append`, `prepend`, `remove`, `insert`, `move`, `swap`, `replace`.
+Available methods: `append`, `prepend`, `remove`, `insert`, `move`, `swap`, `sort`, `reorder`, `replace`.
 
 `replace` replaces the entire array value, clears all child state (dirty, touched, errors, pending), and re-validates only the array path itself (sync + schema + async). Children are not individually validated.
 
@@ -267,6 +275,9 @@ You can also call array methods directly on the namespace:
 form.fieldArray.append("sections", { title: "" });
 form.fieldArray.remove("sections", 2);
 form.fieldArray.move("sections", 0, 3);
+form.fieldArray.swap("sections", 0, 1);
+form.fieldArray.sort("sections", (a, b) => a.order - b.order);
+form.fieldArray.reorder("sections", [2, 0, 1]);
 form.fieldArray.replace("sections", [{ title: "New" }]);
 ```
 
@@ -414,13 +425,13 @@ form.tree.setValue("address", {
 
 ```ts
 // Before: items = [{ title: "A" }, { title: "B" }, { title: "C" }]
-// touched: { "items.0.title": true, "items.1.title": true, "items.2.title": true }
+// internally: touchedFields = { "items._k0.title": true, "items._k1.title": true, "items._k2.title": true }
 
 form.tree.setValue("items", [{ title: "A" }]);
 
-// After:
-// touched: { "items.0.title": true }
-// "items.1.title" and "items.2.title" metadata removed automatically
+// After: only the surviving element's metadata is kept
+// touchedFields = { "items._k3.title": ... }  (new keys for the new array)
+// old _k0/_k1/_k2 metadata removed automatically
 ```
 
 This is particularly useful when:
@@ -458,6 +469,8 @@ const form = useForm({
 ```ts
 type FormState<TValues, TError = string> = {
   values: TValues
+  arrayKeys: Record<string, string[]>
+  _keyCounter: number
   dirtyFields: Record<string, boolean>
   touchedFields: Record<string, boolean>
   errors: Record<string, TError | undefined>
@@ -469,7 +482,9 @@ type FormState<TValues, TError = string> = {
 }
 ```
 
-All path-keyed records use dot-notation (`"items.0.name"`).
+`values` contains the real data structure (arrays are real arrays). `arrayKeys` maps each array path to its ordered stable keys — e.g. `{ items: ["_k0", "_k1"] }`. `_keyCounter` is the next key to assign.
+
+Metadata records (`dirtyFields`, `touchedFields`, `errors`, `pendingFields`, `focusedField`) use **stable key paths** internally (e.g. `"items._k0.name"`). The API translates index paths transparently, so you can read `form.field.getError("items.0.name")` and it resolves to the correct stable key.
 
 ## Enhancer pipeline
 
@@ -485,8 +500,8 @@ type Enhancer<TValues, TError = string> = (
 
 The built-in pipeline runs in this order:
 
-1. **values** — sets values, handles array mutations (append, remove, insert, move, swap, replace)
-2. **touched** — marks touched on blur, reindexes on array ops
+1. **values** — sets values, manages `arrayKeys`, handles array mutations (append, remove, insert, move, swap, sort, reorder, replace)
+2. **touched** — marks touched on blur/focus, cleans up on array remove
 3. **dirty** — compares against defaultValues with deep equality
 4. **validation** — per-field sync validators from registry
 5. **schemaValidation** — form-level resolver, skips if field already has error

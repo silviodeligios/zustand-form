@@ -15,7 +15,7 @@ __export(actions_exports, {
   ARRAY_INSERT: () => ARRAY_INSERT,
   ARRAY_MOVE: () => ARRAY_MOVE,
   ARRAY_REMOVE: () => ARRAY_REMOVE,
-  ARRAY_REPLACE: () => ARRAY_REPLACE,
+  ARRAY_SORT: () => ARRAY_SORT,
   ARRAY_SWAP: () => ARRAY_SWAP,
   ASYNC_RESOLVE: () => ASYNC_RESOLVE,
   BLUR: () => BLUR,
@@ -55,11 +55,21 @@ var ARRAY_REMOVE = "ARRAY_REMOVE";
 var ARRAY_INSERT = "ARRAY_INSERT";
 var ARRAY_MOVE = "ARRAY_MOVE";
 var ARRAY_SWAP = "ARRAY_SWAP";
-var ARRAY_REPLACE = "ARRAY_REPLACE";
+var ARRAY_SORT = "ARRAY_SORT";
 var RESET_FORM = "RESET_FORM";
 var SUBMIT = "SUBMIT";
 var SUBMIT_SUCCESS = "SUBMIT_SUCCESS";
 var SUBMIT_FAILURE = "SUBMIT_FAILURE";
+
+// src/utils/cache.ts
+function cached(map, key, factory) {
+  let entry = map.get(key);
+  if (!entry) {
+    entry = factory();
+    map.set(key, entry);
+  }
+  return entry;
+}
 
 // src/utils/paths.ts
 function hasPath(obj, path) {
@@ -103,14 +113,103 @@ function setAtKeys(obj, keys, i, value) {
   return { ...obj, [key]: next };
 }
 
-// src/utils/cache.ts
-function cached(map, key, factory) {
-  let entry = map.get(key);
-  if (!entry) {
-    entry = factory();
-    map.set(key, entry);
+// src/utils/arrayKeys.ts
+function isArrayKey(segment) {
+  return segment.length > 2 && segment.charCodeAt(0) === 95 && segment.charCodeAt(1) === 107 && /^\d+$/.test(segment.slice(2));
+}
+function indexPathToKeyPath(path, arrayKeys) {
+  const segments = path.split(".");
+  const result = [];
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (isArrayKey(seg)) {
+      result.push(seg);
+    } else if (/^\d+$/.test(seg)) {
+      const parentPath = result.join(".");
+      const keys = arrayKeys[parentPath];
+      if (keys) {
+        const index = Number(seg);
+        if (index >= 0 && index < keys.length) {
+          result.push(keys[index]);
+        } else {
+          result.push(seg);
+        }
+      } else {
+        result.push(seg);
+      }
+    } else {
+      result.push(seg);
+    }
   }
-  return entry;
+  return result.join(".");
+}
+function keyPathToIndexPath(path, arrayKeys) {
+  const segments = path.split(".");
+  const result = [];
+  const keyResult = [];
+  for (const seg of segments) {
+    if (isArrayKey(seg)) {
+      const parentKeyPath = keyResult.join(".");
+      const keys = arrayKeys[parentKeyPath];
+      if (keys) {
+        const idx = keys.indexOf(seg);
+        result.push(idx >= 0 ? String(idx) : seg);
+      } else {
+        result.push(seg);
+      }
+      keyResult.push(seg);
+    } else {
+      result.push(seg);
+      keyResult.push(seg);
+    }
+  }
+  return result.join(".");
+}
+function scanArrayKeys(value, parentKeyPath, startCounter) {
+  const arrayKeys = {};
+  let counter = startCounter;
+  function scan(val, keyPath) {
+    if (Array.isArray(val)) {
+      const keys = [];
+      for (let i = 0; i < val.length; i++) {
+        const key = "_k" + counter++;
+        keys.push(key);
+        scan(val[i], keyPath ? keyPath + "." + key : key);
+      }
+      arrayKeys[keyPath] = keys;
+    } else if (val != null && typeof val === "object") {
+      for (const [prop, child] of Object.entries(val)) {
+        scan(child, keyPath ? keyPath + "." + prop : prop);
+      }
+    }
+  }
+  scan(value, parentKeyPath);
+  return { arrayKeys, nextCounter: counter };
+}
+function generateKey(counter) {
+  return { key: "_k" + counter, nextCounter: counter + 1 };
+}
+function removeByPrefix(record, keyPrefix) {
+  const dotPrefix = keyPrefix + ".";
+  let hasMatch = false;
+  for (const k of Object.keys(record)) {
+    if (k === keyPrefix || k.startsWith(dotPrefix)) {
+      hasMatch = true;
+      break;
+    }
+  }
+  if (!hasMatch) return record;
+  const next = {};
+  for (const k of Object.keys(record)) {
+    if (k !== keyPrefix && !k.startsWith(dotPrefix)) {
+      next[k] = record[k];
+    }
+  }
+  return next;
+}
+var removeKeyedEntries = removeByPrefix;
+function getValueAtKeyPath(values, keyPath, arrayKeys) {
+  return getIn(values, keyPathToIndexPath(keyPath, arrayKeys));
 }
 
 // src/field/selectors.ts
@@ -125,30 +224,76 @@ function createFieldSelectors(dispatch) {
     fieldState: /* @__PURE__ */ new Map(),
     inputProps: /* @__PURE__ */ new Map()
   };
+  function memoKeyPath(path) {
+    let prevAk = null;
+    let prevKp = path;
+    return (ak) => {
+      if (ak !== prevAk) {
+        prevAk = ak;
+        prevKp = indexPathToKeyPath(path, ak);
+      }
+      return prevKp;
+    };
+  }
   return {
-    value: (path) => cached(cache.value, path, () => (s) => getIn(s.values, path)),
-    error: (path) => cached(cache.error, path, () => (s) => s.errors[path]),
-    dirty: (path) => cached(cache.dirty, path, () => (s) => s.dirtyFields[path] ?? false),
-    touched: (path) => cached(cache.touched, path, () => (s) => s.touchedFields[path] ?? false),
-    pending: (path) => cached(cache.pending, path, () => (s) => s.pendingFields[path] ?? false),
-    focused: (path) => cached(cache.focused, path, () => (s) => s.focusedField === path),
-    fieldState: (path) => cached(cache.fieldState, path, () => (s) => ({
-      dirty: s.dirtyFields[path] ?? false,
-      touched: s.touchedFields[path] ?? false,
-      error: s.errors[path],
-      pending: s.pendingFields[path] ?? false,
-      focused: s.focusedField === path
-    })),
+    value: (path) => cached(
+      cache.value,
+      path,
+      () => (s) => getValueAtKeyPath(s.values, path, s.arrayKeys)
+    ),
+    error: (path) => cached(cache.error, path, () => {
+      const kp = memoKeyPath(path);
+      return (s) => s.errors[kp(s.arrayKeys)];
+    }),
+    dirty: (path) => cached(cache.dirty, path, () => {
+      const kp = memoKeyPath(path);
+      return (s) => s.dirtyFields[kp(s.arrayKeys)] ?? false;
+    }),
+    touched: (path) => cached(cache.touched, path, () => {
+      const kp = memoKeyPath(path);
+      return (s) => s.touchedFields[kp(s.arrayKeys)] ?? false;
+    }),
+    pending: (path) => cached(cache.pending, path, () => {
+      const kp = memoKeyPath(path);
+      return (s) => s.pendingFields[kp(s.arrayKeys)] ?? false;
+    }),
+    focused: (path) => cached(cache.focused, path, () => {
+      const kp = memoKeyPath(path);
+      return (s) => s.focusedField === kp(s.arrayKeys);
+    }),
+    fieldState: (path) => cached(cache.fieldState, path, () => {
+      const kp = memoKeyPath(path);
+      return (s) => {
+        const k = kp(s.arrayKeys);
+        return {
+          dirty: s.dirtyFields[k] ?? false,
+          touched: s.touchedFields[k] ?? false,
+          error: s.errors[k],
+          pending: s.pendingFields[k] ?? false,
+          focused: s.focusedField === k
+        };
+      };
+    }),
     inputProps: (path) => cached(cache.inputProps, path, () => {
       const onChange = (v) => dispatch({ type: SET_VALUE, path, value: v });
       const onBlur = () => dispatch({ type: BLUR, path });
       const onFocus = () => dispatch({ type: FOCUS, path });
-      return (s) => ({
-        value: getIn(s.values, path),
-        onChange,
-        onBlur,
-        onFocus
-      });
+      let prevValues = null;
+      let prevAk = null;
+      let prevResult = null;
+      return (s) => {
+        if (s.values === prevValues && s.arrayKeys === prevAk)
+          return prevResult;
+        prevValues = s.values;
+        prevAk = s.arrayKeys;
+        prevResult = {
+          value: getValueAtKeyPath(s.values, path, s.arrayKeys),
+          onChange,
+          onBlur,
+          onFocus
+        };
+        return prevResult;
+      };
     })
   };
 }
@@ -156,12 +301,16 @@ function createFieldSelectors(dispatch) {
 // src/field/createField.ts
 function createFieldNamespace(store, dispatch) {
   const s = () => store.getState();
+  const kp = (path) => indexPathToKeyPath(path, s().arrayKeys);
   return {
-    getValue: (path) => getIn(s().values, path),
-    isDirty: (path) => s().dirtyFields[path] === true,
-    isTouched: (path) => s().touchedFields[path] === true,
-    isPending: (path) => s().pendingFields[path] === true,
-    getError: (path) => s().errors[path],
+    getValue: (path) => {
+      const state = s();
+      return getValueAtKeyPath(state.values, path, state.arrayKeys);
+    },
+    isDirty: (path) => s().dirtyFields[kp(path)] === true,
+    isTouched: (path) => s().touchedFields[kp(path)] === true,
+    isPending: (path) => s().pendingFields[kp(path)] === true,
+    getError: (path) => s().errors[kp(path)],
     setValue: (path, v, opts) => dispatch({ type: SET_VALUE, path, value: v, options: opts }),
     setError: (path, msg, opts) => dispatch({ type: SET_ERROR, path, value: msg, options: opts }),
     clearError: (path, opts) => dispatch({ type: CLEAR_ERROR, path, options: opts }),
@@ -178,33 +327,43 @@ function createFieldNamespace(store, dispatch) {
 // src/fieldArray/createFieldArray.ts
 function createFieldArrayNamespace(store, dispatch) {
   const s = () => store.getState();
+  const kp = (path) => indexPathToKeyPath(path, s().arrayKeys);
   const lengthCache = /* @__PURE__ */ new Map();
+  const keysCache = /* @__PURE__ */ new Map();
   return {
-    getLength: (path) => getInArray(s().values, path).length,
+    getLength: (path) => (s().arrayKeys[kp(path)] ?? []).length,
+    getKeys: (path) => s().arrayKeys[kp(path)] ?? [],
     append: (path, v, opts) => dispatch({ type: ARRAY_APPEND, path, value: v, options: opts }),
-    prepend: (path, v, opts) => dispatch({
-      type: ARRAY_INSERT,
-      path,
-      index: 0,
-      value: v,
-      options: opts
-    }),
+    prepend: (path, v, opts) => dispatch({ type: ARRAY_INSERT, path, index: 0, value: v, options: opts }),
     remove: (path, i, opts) => dispatch({ type: ARRAY_REMOVE, path, index: i, options: opts }),
-    insert: (path, i, v, opts) => dispatch({
-      type: ARRAY_INSERT,
-      path,
-      index: i,
-      value: v,
-      options: opts
-    }),
+    insert: (path, i, v, opts) => dispatch({ type: ARRAY_INSERT, path, index: i, value: v, options: opts }),
     move: (path, f, t, opts) => dispatch({ type: ARRAY_MOVE, path, from: f, to: t, options: opts }),
-    replace: (path, v, opts) => dispatch({ type: ARRAY_REPLACE, path, value: v, options: opts }),
+    replace: (path, v, opts) => dispatch({ type: SET_TREE_VALUE, path, value: v, options: opts }),
     swap: (path, a, b, opts) => dispatch({ type: ARRAY_SWAP, path, from: a, to: b, options: opts }),
+    sort: (path, comparator, opts) => {
+      const state = s();
+      const arr = getInArray(state.values, path);
+      const indices = arr.map((_, i) => i);
+      indices.sort((a, b) => comparator(arr[a], arr[b]));
+      dispatch({ type: ARRAY_SORT, path, permutation: indices, options: opts });
+    },
+    reorder: (path, permutation, opts) => dispatch({ type: ARRAY_SORT, path, permutation, options: opts }),
     select: {
       length: (path) => cached(
         lengthCache,
         path,
-        () => (s2) => getInArray(s2.values, path).length
+        () => (s2) => {
+          const keyPath = indexPathToKeyPath(path, s2.arrayKeys);
+          return (s2.arrayKeys[keyPath] ?? []).length;
+        }
+      ),
+      keys: (path) => cached(
+        keysCache,
+        path,
+        () => (s2) => {
+          const keyPath = indexPathToKeyPath(path, s2.arrayKeys);
+          return s2.arrayKeys[keyPath] ?? [];
+        }
       )
     }
   };
@@ -229,77 +388,82 @@ function createTreeSelectors(getMatcher, filterErrors) {
     errorCount: /* @__PURE__ */ new Map()
   };
   const cacheKey = (path) => path ?? "";
+  function matchFor(path, ak) {
+    return getMatcher(path ? indexPathToKeyPath(path, ak) : path);
+  }
   return {
     dirty: (path) => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.dirty,
         k,
-        () => (s) => Object.keys(s.dirtyFields).some(match)
+        () => (s) => Object.keys(s.dirtyFields).some(matchFor(path, s.arrayKeys))
       );
     },
     touched: (path) => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.touched,
         k,
-        () => (s) => Object.keys(s.touchedFields).some(match)
+        () => (s) => Object.keys(s.touchedFields).some(matchFor(path, s.arrayKeys))
       );
     },
     pending: (path) => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.pending,
         k,
-        () => (s) => Object.keys(s.pendingFields).some(match)
+        () => (s) => Object.keys(s.pendingFields).some(matchFor(path, s.arrayKeys))
       );
     },
     valid: (path) => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.valid,
         k,
-        () => (s) => !Object.keys(s.errors).some(
-          (key) => match(key) && s.errors[key] !== void 0
-        )
+        () => (s) => {
+          const match = matchFor(path, s.arrayKeys);
+          return !Object.keys(s.errors).some(
+            (key) => match(key) && s.errors[key] !== void 0
+          );
+        }
       );
     },
     errors: (path) => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
-      return cached(cache.errors, k, () => (s) => filterErrors(s, match));
+      return cached(
+        cache.errors,
+        k,
+        () => (s) => filterErrors(s, matchFor(path, s.arrayKeys))
+      );
     },
     dirtyFields: (path) => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.dirtyFields,
         k,
-        () => (s) => Object.keys(s.dirtyFields).filter(match)
+        () => (s) => Object.keys(s.dirtyFields).filter(matchFor(path, s.arrayKeys))
       );
     },
     touchedFields: (path) => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.touchedFields,
         k,
-        () => (s) => Object.keys(s.touchedFields).filter(match)
+        () => (s) => Object.keys(s.touchedFields).filter(matchFor(path, s.arrayKeys))
       );
     },
     errorCount: (path) => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.errorCount,
         k,
-        () => (s) => Object.keys(s.errors).filter(
-          (key) => match(key) && s.errors[key] !== void 0
-        ).length
+        () => (s) => {
+          const match = matchFor(path, s.arrayKeys);
+          return Object.keys(s.errors).filter(
+            (key) => match(key) && s.errors[key] !== void 0
+          ).length;
+        }
       );
     }
   };
@@ -318,6 +482,10 @@ function createTreeNamespace(store, dispatch) {
     }
     return m;
   }
+  function matchFor(path, ak) {
+    const kp = path ? indexPathToKeyPath(path, ak) : path;
+    return getMatcher(kp);
+  }
   function filterErrors(state, match) {
     const result = {};
     for (const k of Object.keys(state.errors)) {
@@ -327,15 +495,37 @@ function createTreeNamespace(store, dispatch) {
     return result;
   }
   return {
-    isDirty: (path) => Object.keys(s().dirtyFields).some(getMatcher(path)),
-    isTouched: (path) => Object.keys(s().touchedFields).some(getMatcher(path)),
-    isPending: (path) => Object.keys(s().pendingFields).some(getMatcher(path)),
-    isValid: (path) => !Object.keys(s().errors).some(
-      (k) => getMatcher(path)(k) && s().errors[k] !== void 0
-    ),
-    getErrors: (path) => filterErrors(s(), getMatcher(path)),
-    getDirtyFields: (path) => Object.keys(s().dirtyFields).filter(getMatcher(path)),
-    getTouchedFields: (path) => Object.keys(s().touchedFields).filter(getMatcher(path)),
+    isDirty: (path) => {
+      const state = s();
+      return Object.keys(state.dirtyFields).some(matchFor(path, state.arrayKeys));
+    },
+    isTouched: (path) => {
+      const state = s();
+      return Object.keys(state.touchedFields).some(matchFor(path, state.arrayKeys));
+    },
+    isPending: (path) => {
+      const state = s();
+      return Object.keys(state.pendingFields).some(matchFor(path, state.arrayKeys));
+    },
+    isValid: (path) => {
+      const state = s();
+      const match = matchFor(path, state.arrayKeys);
+      return !Object.keys(state.errors).some(
+        (k) => match(k) && state.errors[k] !== void 0
+      );
+    },
+    getErrors: (path) => {
+      const state = s();
+      return filterErrors(state, matchFor(path, state.arrayKeys));
+    },
+    getDirtyFields: (path) => {
+      const state = s();
+      return Object.keys(state.dirtyFields).filter(matchFor(path, state.arrayKeys));
+    },
+    getTouchedFields: (path) => {
+      const state = s();
+      return Object.keys(state.touchedFields).filter(matchFor(path, state.arrayKeys));
+    },
     setValue: (...args) => {
       if (typeof args[0] === "string") {
         dispatch({ type: SET_TREE_VALUE, path: args[0], value: args[1] });
@@ -350,100 +540,24 @@ function createTreeNamespace(store, dispatch) {
   };
 }
 
-// src/utils/arrayReindex.ts
-function computeNewIndex(index, op) {
-  if (op.type === "remove") {
-    if (index === op.index) return null;
-    return index > op.index ? index - 1 : index;
-  }
-  if (op.type === "insert") {
-    return index >= op.index ? index + 1 : index;
-  }
-  if (op.type === "move") {
-    const { from: from2, to: to2 } = op;
-    if (from2 === to2) return index;
-    if (index === from2) return to2;
-    if (from2 < to2) return index > from2 && index <= to2 ? index - 1 : index;
-    return index >= to2 && index < from2 ? index + 1 : index;
-  }
-  const { from, to } = op;
-  if (from === to) return index;
-  if (index === from) return to;
-  if (index === to) return from;
-  return index;
-}
-function parsePathIndex(key, prefix) {
-  if (!key.startsWith(prefix)) return null;
-  const rest = key.slice(prefix.length);
-  const firstDot = rest.indexOf(".");
-  const indexStr = firstDot === -1 ? rest : rest.slice(0, firstDot);
-  const index = Number(indexStr);
-  if (Number.isNaN(index) || index < 0) return null;
-  const suffix = firstDot === -1 ? "" : rest.slice(firstDot);
-  return { index, suffix };
-}
-function reindexPathKeyedRecord(record, arrayPath, op) {
-  const prefix = arrayPath + ".";
-  const result = {};
-  for (const key of Object.keys(record)) {
-    if (key === arrayPath || !key.startsWith(prefix)) {
-      result[key] = record[key];
-      continue;
-    }
-    const parsed = parsePathIndex(key, prefix);
-    if (!parsed) {
-      result[key] = record[key];
-      continue;
-    }
-    const newIndex = computeNewIndex(parsed.index, op);
-    if (newIndex !== null) {
-      result[prefix + String(newIndex) + parsed.suffix] = record[key];
-    }
-  }
-  return result;
-}
-function reindexMap(map, arrayPath, op, onRemove, onMove) {
-  const prefix = arrayPath + ".";
-  const toDelete = [];
-  const toSet = [];
-  for (const [key, value] of map) {
-    if (key === arrayPath || !key.startsWith(prefix)) continue;
-    const parsed = parsePathIndex(key, prefix);
-    if (!parsed) continue;
-    const newIndex = computeNewIndex(parsed.index, op);
-    toDelete.push(key);
-    if (newIndex === null) {
-      onRemove?.(key, value);
-    } else {
-      const newKey = prefix + String(newIndex) + parsed.suffix;
-      toSet.push([newKey, value]);
-      if (onMove && newKey !== key) onMove(key, newKey);
-    }
-  }
-  for (const key of toDelete) map.delete(key);
-  for (const [key, value] of toSet) map.set(key, value);
-}
-
 // src/validation/registry.ts
 function createFieldRegistry(dispatch) {
   const validators = /* @__PURE__ */ new Map();
   const asyncVersions = /* @__PURE__ */ new Map();
   const asyncTimers = /* @__PURE__ */ new Map();
-  const reindexedPaths = /* @__PURE__ */ new Set();
-  const asyncSessions = /* @__PURE__ */ new Map();
-  let sessionCounter = 0;
   return {
     register(path, entry) {
       validators.set(path, entry);
       if (!asyncVersions.has(path)) asyncVersions.set(path, 0);
     },
     unregister(path) {
-      if (reindexedPaths.delete(path)) return;
       validators.delete(path);
       const timer = asyncTimers.get(path);
       if (timer) clearTimeout(timer);
       asyncTimers.delete(path);
-      asyncVersions.set(path, (asyncVersions.get(path) ?? 0) + 1);
+      if (asyncVersions.has(path)) {
+        asyncVersions.set(path, asyncVersions.get(path) + 1);
+      }
       dispatch({ type: ASYNC_RESOLVE, path });
     },
     get: (path) => validators.get(path),
@@ -464,35 +578,24 @@ function createFieldRegistry(dispatch) {
       if (timer) clearTimeout(timer);
       asyncTimers.delete(path);
     },
-    reindex(arrayPath, op) {
-      const prefix = arrayPath + ".";
-      reindexMap(validators, arrayPath, op, void 0, (oldKey) => {
-        reindexedPaths.add(oldKey);
-      });
-      setTimeout(() => reindexedPaths.clear(), 0);
-      reindexMap(asyncTimers, arrayPath, op, (_key, timer) => {
-        clearTimeout(timer);
-      });
-      reindexMap(asyncVersions, arrayPath, op);
-      for (const [id, session] of asyncSessions) {
-        const parsed = parsePathIndex(session.path, prefix);
-        if (!parsed) continue;
-        const newIdx = computeNewIndex(parsed.index, op);
-        if (newIdx === null) {
-          asyncSessions.delete(id);
-        } else {
-          session.path = prefix + String(newIdx) + parsed.suffix;
+    removeByPrefix(prefix) {
+      const dotPrefix = prefix + ".";
+      for (const [p] of validators) {
+        if (p === prefix || p.startsWith(dotPrefix)) {
+          validators.delete(p);
         }
       }
-    },
-    createSession(path, version) {
-      const id = ++sessionCounter;
-      asyncSessions.set(id, { path, version });
-      return id;
-    },
-    getSession: (id) => asyncSessions.get(id),
-    deleteSession: (id) => {
-      asyncSessions.delete(id);
+      for (const [p, timer] of asyncTimers) {
+        if (p === prefix || p.startsWith(dotPrefix)) {
+          clearTimeout(timer);
+          asyncTimers.delete(p);
+        }
+      }
+      for (const [p] of asyncVersions) {
+        if (p === prefix || p.startsWith(dotPrefix)) {
+          asyncVersions.delete(p);
+        }
+      }
     }
   };
 }
@@ -518,83 +621,267 @@ function isEqual(a, b) {
   return true;
 }
 
+// src/core/initialState.ts
+function buildInitialState(configInitialState, previewEnhancers) {
+  const base = {
+    values: {},
+    arrayKeys: {},
+    _keyCounter: 0,
+    dirtyFields: {},
+    touchedFields: {},
+    errors: {},
+    pendingFields: {},
+    focusedField: null,
+    isSubmitting: false,
+    submitCount: 0,
+    isSubmitSuccessful: false,
+    ...configInitialState
+  };
+  let merged = base;
+  for (const e of previewEnhancers) {
+    if (e.initialState) {
+      const patch = typeof e.initialState === "function" ? e.initialState(merged) : e.initialState;
+      merged = { ...merged, ...patch };
+    }
+  }
+  const defaultValues = merged.values;
+  const { arrayKeys: initAk, nextCounter: initCounter } = scanArrayKeys(merged.values, "", merged._keyCounter);
+  const initialState = {
+    ...merged,
+    arrayKeys: initAk,
+    _keyCounter: initCounter
+  };
+  return {
+    initialState,
+    defaultValues,
+    initialArrayKeys: initAk
+  };
+}
+
 // src/layers/values.ts
-function valuesEnhancer(defaultValues) {
+function rescanSubtree(ak, keyPath, value, counter) {
+  let newAk = removeByPrefix(ak, keyPath);
+  if (newAk === ak) newAk = { ...ak };
+  const scanned = scanArrayKeys(value, keyPath, counter);
+  return {
+    arrayKeys: { ...newAk, ...scanned.arrayKeys },
+    counter: scanned.nextCounter
+  };
+}
+function valuesEnhancer(defaultValues, initialArrayKeys) {
   return (ctx, prev, draft) => {
     switch (ctx.type) {
       case SET_VALUE: {
         if (!ctx.path) return draft;
         const base = draft.values ?? prev.values;
-        return {
-          ...draft,
-          values: setIn(base, ctx.path, ctx.value)
-        };
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        let counter = draft._keyCounter ?? prev._keyCounter;
+        const indexPath = keyPathToIndexPath(ctx.path, ak);
+        const newValues = setIn(base, indexPath, ctx.value);
+        let newAk = ak;
+        if (ctx.value != null && typeof ctx.value === "object") {
+          const cleaned = removeByPrefix(ak, ctx.path);
+          const scanned = scanArrayKeys(ctx.value, ctx.path, counter);
+          if (Object.keys(scanned.arrayKeys).length > 0 || cleaned !== ak) {
+            newAk = { ...cleaned === ak ? ak : cleaned, ...scanned.arrayKeys };
+            counter = scanned.nextCounter;
+          }
+        }
+        const result = { ...draft, values: newValues };
+        if (newAk !== ak) {
+          result.arrayKeys = newAk;
+          result._keyCounter = counter;
+        }
+        return result;
       }
       case ARRAY_APPEND: {
         if (!ctx.path) return draft;
         const base = draft.values ?? prev.values;
-        const arr = getInArray(base, ctx.path);
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        let counter = draft._keyCounter ?? prev._keyCounter;
+        const indexPath = keyPathToIndexPath(ctx.path, ak);
+        const arr = [...getInArray(base, indexPath), ctx.value];
+        const newValues = setIn(base, indexPath, arr);
+        const { key, nextCounter } = generateKey(counter);
+        counter = nextCounter;
+        const elementKeyPath = ctx.path + "." + key;
+        const scanned = scanArrayKeys(ctx.value, elementKeyPath, counter);
+        counter = scanned.nextCounter;
+        const keys = [...ak[ctx.path] ?? [], key];
         return {
           ...draft,
-          values: setIn(base, ctx.path, [...arr, ctx.value])
+          values: newValues,
+          arrayKeys: { ...ak, ...scanned.arrayKeys, [ctx.path]: keys },
+          _keyCounter: counter
         };
       }
       case ARRAY_REMOVE: {
         if (!ctx.path || ctx.index == null) return draft;
         const base = draft.values ?? prev.values;
-        const arr = getInArray(base, ctx.path);
-        const next = arr.filter((_, i) => i !== ctx.index);
-        return { ...draft, values: setIn(base, ctx.path, next) };
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const indexPath = keyPathToIndexPath(ctx.path, ak);
+        const arr = getInArray(base, indexPath).filter(
+          (_, i) => i !== ctx.index
+        );
+        const newValues = setIn(base, indexPath, arr);
+        const keys = ak[ctx.path] ?? [];
+        const removedKey = keys[ctx.index];
+        const newKeys = keys.filter((_, i) => i !== ctx.index);
+        let newAk = { ...ak, [ctx.path]: newKeys };
+        if (removedKey) {
+          newAk = removeByPrefix(newAk, ctx.path + "." + removedKey);
+        }
+        return { ...draft, values: newValues, arrayKeys: newAk };
       }
       case ARRAY_INSERT: {
         if (!ctx.path || ctx.index == null) return draft;
         const base = draft.values ?? prev.values;
-        const arr = [...getInArray(base, ctx.path)];
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        let counter = draft._keyCounter ?? prev._keyCounter;
+        const indexPath = keyPathToIndexPath(ctx.path, ak);
+        const arr = [...getInArray(base, indexPath)];
         arr.splice(ctx.index, 0, ctx.value);
-        return { ...draft, values: setIn(base, ctx.path, arr) };
+        const newValues = setIn(base, indexPath, arr);
+        const { key, nextCounter } = generateKey(counter);
+        counter = nextCounter;
+        const elementKeyPath = ctx.path + "." + key;
+        const scanned = scanArrayKeys(ctx.value, elementKeyPath, counter);
+        counter = scanned.nextCounter;
+        const keys = [...ak[ctx.path] ?? []];
+        keys.splice(ctx.index, 0, key);
+        return {
+          ...draft,
+          values: newValues,
+          arrayKeys: { ...ak, ...scanned.arrayKeys, [ctx.path]: keys },
+          _keyCounter: counter
+        };
       }
       case ARRAY_MOVE: {
         if (!ctx.path || ctx.from == null || ctx.to == null) return draft;
         const base = draft.values ?? prev.values;
-        const arr = [...getInArray(base, ctx.path)];
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const indexPath = keyPathToIndexPath(ctx.path, ak);
+        const arr = [...getInArray(base, indexPath)];
         const [item] = arr.splice(ctx.from, 1);
         arr.splice(ctx.to, 0, item);
-        return { ...draft, values: setIn(base, ctx.path, arr) };
+        const keys = [...ak[ctx.path] ?? []];
+        const [movedKey] = keys.splice(ctx.from, 1);
+        keys.splice(ctx.to, 0, movedKey);
+        return {
+          ...draft,
+          values: setIn(base, indexPath, arr),
+          arrayKeys: { ...ak, [ctx.path]: keys }
+        };
       }
       case ARRAY_SWAP: {
         if (!ctx.path || ctx.from == null || ctx.to == null) return draft;
         const base = draft.values ?? prev.values;
-        const arr = [...getInArray(base, ctx.path)];
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const indexPath = keyPathToIndexPath(ctx.path, ak);
+        const arr = [...getInArray(base, indexPath)];
         const tmp = arr[ctx.from];
         arr[ctx.from] = arr[ctx.to];
         arr[ctx.to] = tmp;
-        return { ...draft, values: setIn(base, ctx.path, arr) };
+        const keys = [...ak[ctx.path] ?? []];
+        const tmpKey = keys[ctx.from];
+        keys[ctx.from] = keys[ctx.to];
+        keys[ctx.to] = tmpKey;
+        return {
+          ...draft,
+          values: setIn(base, indexPath, arr),
+          arrayKeys: { ...ak, [ctx.path]: keys }
+        };
       }
-      case ARRAY_REPLACE: {
-        if (!ctx.path) return draft;
+      case ARRAY_SORT: {
+        if (!ctx.path || !ctx.permutation) return draft;
         const base = draft.values ?? prev.values;
-        return { ...draft, values: setIn(base, ctx.path, ctx.value) };
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const indexPath = keyPathToIndexPath(ctx.path, ak);
+        const arr = getInArray(base, indexPath);
+        const sortedArr = ctx.permutation.map((i) => arr[i]);
+        const keys = ak[ctx.path] ?? [];
+        const sortedKeys = ctx.permutation.map((i) => keys[i]);
+        return {
+          ...draft,
+          values: setIn(base, indexPath, sortedArr),
+          arrayKeys: { ...ak, [ctx.path]: sortedKeys }
+        };
       }
       case RESET_FORM: {
         const next = ctx.value ? { ...defaultValues, ...ctx.value } : defaultValues;
-        return { ...draft, values: next };
+        const counter = draft._keyCounter ?? prev._keyCounter;
+        const scanned = scanArrayKeys(next, "", counter);
+        return {
+          ...draft,
+          values: next,
+          arrayKeys: scanned.arrayKeys,
+          _keyCounter: scanned.nextCounter
+        };
       }
       case RESET_FIELD: {
         if (!ctx.path) return draft;
         const base = draft.values ?? prev.values;
-        const initial = getIn(defaultValues, ctx.path);
-        return { ...draft, values: setIn(base, ctx.path, initial) };
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        let counter = draft._keyCounter ?? prev._keyCounter;
+        const originalIndexPath = keyPathToIndexPath(ctx.path, initialArrayKeys);
+        const initial = getIn(defaultValues, originalIndexPath);
+        const currentIndexPath = keyPathToIndexPath(ctx.path, ak);
+        const sub = rescanSubtree(ak, ctx.path, initial, counter);
+        counter = sub.counter;
+        return {
+          ...draft,
+          values: setIn(base, currentIndexPath, initial),
+          arrayKeys: sub.arrayKeys,
+          _keyCounter: counter
+        };
       }
       case SET_TREE_VALUE: {
         const base = draft.values ?? prev.values;
-        if (!ctx.path) return { ...draft, values: ctx.value };
-        return { ...draft, values: setIn(base, ctx.path, ctx.value) };
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        let counter = draft._keyCounter ?? prev._keyCounter;
+        if (!ctx.path) {
+          const scanned = scanArrayKeys(ctx.value, "", counter);
+          return {
+            ...draft,
+            values: ctx.value,
+            arrayKeys: scanned.arrayKeys,
+            _keyCounter: scanned.nextCounter
+          };
+        }
+        const currentIndexPath = keyPathToIndexPath(ctx.path, ak);
+        const sub = rescanSubtree(ak, ctx.path, ctx.value, counter);
+        counter = sub.counter;
+        return {
+          ...draft,
+          values: setIn(base, currentIndexPath, ctx.value),
+          arrayKeys: sub.arrayKeys,
+          _keyCounter: counter
+        };
       }
       case RESET_BRANCH: {
-        if (!ctx.path) return { ...draft, values: defaultValues };
         const base = draft.values ?? prev.values;
-        const initial = getIn(defaultValues, ctx.path);
-        return { ...draft, values: setIn(base, ctx.path, initial) };
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        let counter = draft._keyCounter ?? prev._keyCounter;
+        if (!ctx.path) {
+          const scanned = scanArrayKeys(defaultValues, "", counter);
+          return {
+            ...draft,
+            values: defaultValues,
+            arrayKeys: scanned.arrayKeys,
+            _keyCounter: scanned.nextCounter
+          };
+        }
+        const originalIndexPath = keyPathToIndexPath(ctx.path, initialArrayKeys);
+        const initial = getIn(defaultValues, originalIndexPath);
+        const currentIndexPath = keyPathToIndexPath(ctx.path, ak);
+        const sub = rescanSubtree(ak, ctx.path, initial, counter);
+        counter = sub.counter;
+        return {
+          ...draft,
+          values: setIn(base, currentIndexPath, initial),
+          arrayKeys: sub.arrayKeys,
+          _keyCounter: counter
+        };
       }
       default:
         return draft;
@@ -635,52 +922,24 @@ function touchedEnhancer() {
       }
       case ARRAY_REMOVE: {
         if (!ctx.path) return draft;
-        const base = reindexPathKeyedRecord(
-          draft.touchedFields ?? prev.touchedFields,
-          ctx.path,
-          { type: "remove", index: ctx.index }
-        );
+        const prevKeys = prev.arrayKeys[ctx.path] ?? [];
+        const removedKey = prevKeys[ctx.index];
+        let base = draft.touchedFields ?? prev.touchedFields;
+        if (removedKey) {
+          base = removeByPrefix(base, ctx.path + "." + removedKey);
+        }
         return { ...draft, touchedFields: { ...base, [ctx.path]: true } };
       }
       case ARRAY_INSERT: {
         if (!ctx.path) return draft;
-        const base = reindexPathKeyedRecord(
-          draft.touchedFields ?? prev.touchedFields,
-          ctx.path,
-          { type: "insert", index: ctx.index }
-        );
+        const base = draft.touchedFields ?? prev.touchedFields;
         return { ...draft, touchedFields: { ...base, [ctx.path]: true } };
       }
-      case ARRAY_MOVE: {
+      case ARRAY_MOVE:
+      case ARRAY_SWAP:
+      case ARRAY_SORT: {
         if (!ctx.path) return draft;
-        const base = reindexPathKeyedRecord(
-          draft.touchedFields ?? prev.touchedFields,
-          ctx.path,
-          { type: "move", from: ctx.from, to: ctx.to }
-        );
-        return { ...draft, touchedFields: { ...base, [ctx.path]: true } };
-      }
-      case ARRAY_SWAP: {
-        if (!ctx.path) return draft;
-        const base = reindexPathKeyedRecord(
-          draft.touchedFields ?? prev.touchedFields,
-          ctx.path,
-          { type: "swap", from: ctx.from, to: ctx.to }
-        );
-        return { ...draft, touchedFields: { ...base, [ctx.path]: true } };
-      }
-      case ARRAY_REPLACE: {
-        if (!ctx.path) return draft;
-        const prefix = ctx.path + ".";
-        let base = draft.touchedFields ?? prev.touchedFields;
-        if (Object.keys(base).some((k) => k.startsWith(prefix))) {
-          const next = {};
-          for (const k of Object.keys(base)) {
-            if (!k.startsWith(prefix) && base[k] !== void 0)
-              next[k] = base[k];
-          }
-          base = next;
-        }
+        const base = draft.touchedFields ?? prev.touchedFields;
         return { ...draft, touchedFields: { ...base, [ctx.path]: true } };
       }
       case RESET_FORM:
@@ -694,12 +953,16 @@ function touchedEnhancer() {
         const match = treeMatcher(ctx.path);
         const base = draft.touchedFields ?? prev.touchedFields;
         const newValues = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         const next = {};
         for (const k of Object.keys(base)) {
           if (!match(k)) {
             if (base[k] !== void 0) next[k] = base[k];
-          } else if (hasPath(newValues, k) && base[k] !== void 0) {
-            next[k] = base[k];
+          } else {
+            const idxPath = keyPathToIndexPath(k, ak);
+            if (hasPath(newValues, idxPath) && base[k] !== void 0) {
+              next[k] = base[k];
+            }
           }
         }
         return { ...draft, touchedFields: next };
@@ -720,24 +983,30 @@ function touchedEnhancer() {
 }
 
 // src/layers/dirty.ts
-function arrayDirtyCheck(dirtyFields, draft, prev, path, defaultValues) {
+function arrayDirtyCheck(dirtyFields, draft, prev, path, defaultValues, initialArrayKeys) {
   const values = draft.values ?? prev.values;
-  const current = getIn(values, path);
-  const initial = getIn(defaultValues, path);
-  if (!isEqual(current, initial)) {
+  const ak = draft.arrayKeys ?? prev.arrayKeys;
+  const currentIndexPath = keyPathToIndexPath(path, ak);
+  const originalIndexPath = keyPathToIndexPath(path, initialArrayKeys);
+  const currentVal = getIn(values, currentIndexPath);
+  const initialVal = getIn(defaultValues, originalIndexPath);
+  if (!isEqual(currentVal, initialVal)) {
     return { ...draft, dirtyFields: { ...dirtyFields, [path]: true } };
   }
   const { [path]: _, ...rest } = dirtyFields;
   return { ...draft, dirtyFields: rest };
 }
-function dirtyEnhancer(defaultValues) {
+function dirtyEnhancer(defaultValues, initialArrayKeys) {
   return (ctx, prev, draft) => {
     switch (ctx.type) {
       case SET_VALUE: {
         if (!ctx.path) return draft;
         const values = draft.values ?? prev.values;
-        const current = getIn(values, ctx.path);
-        const initial = getIn(defaultValues, ctx.path);
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const currentIndexPath = keyPathToIndexPath(ctx.path, ak);
+        const originalIndexPath = keyPathToIndexPath(ctx.path, initialArrayKeys);
+        const current = getIn(values, currentIndexPath);
+        const initial = getIn(defaultValues, originalIndexPath);
         const isDirty = !isEqual(current, initial);
         const base = draft.dirtyFields ?? prev.dirtyFields;
         if (isDirty) {
@@ -759,58 +1028,50 @@ function dirtyEnhancer(defaultValues) {
           draft,
           prev,
           ctx.path,
-          defaultValues
+          defaultValues,
+          initialArrayKeys
         );
       }
       case ARRAY_REMOVE: {
         if (!ctx.path) return draft;
-        const base = reindexPathKeyedRecord(
-          draft.dirtyFields ?? prev.dirtyFields,
+        const prevKeys = prev.arrayKeys[ctx.path] ?? [];
+        const removedKey = prevKeys[ctx.index];
+        let base = draft.dirtyFields ?? prev.dirtyFields;
+        if (removedKey) {
+          base = removeByPrefix(base, ctx.path + "." + removedKey);
+        }
+        return arrayDirtyCheck(
+          base,
+          draft,
+          prev,
           ctx.path,
-          { type: "remove", index: ctx.index }
+          defaultValues,
+          initialArrayKeys
         );
-        return arrayDirtyCheck(base, draft, prev, ctx.path, defaultValues);
       }
       case ARRAY_INSERT: {
         if (!ctx.path) return draft;
-        const base = reindexPathKeyedRecord(
+        return arrayDirtyCheck(
           draft.dirtyFields ?? prev.dirtyFields,
+          draft,
+          prev,
           ctx.path,
-          { type: "insert", index: ctx.index }
+          defaultValues,
+          initialArrayKeys
         );
-        return arrayDirtyCheck(base, draft, prev, ctx.path, defaultValues);
       }
-      case ARRAY_MOVE: {
+      case ARRAY_MOVE:
+      case ARRAY_SWAP:
+      case ARRAY_SORT: {
         if (!ctx.path) return draft;
-        const base = reindexPathKeyedRecord(
+        return arrayDirtyCheck(
           draft.dirtyFields ?? prev.dirtyFields,
+          draft,
+          prev,
           ctx.path,
-          { type: "move", from: ctx.from, to: ctx.to }
+          defaultValues,
+          initialArrayKeys
         );
-        return arrayDirtyCheck(base, draft, prev, ctx.path, defaultValues);
-      }
-      case ARRAY_SWAP: {
-        if (!ctx.path) return draft;
-        const base = reindexPathKeyedRecord(
-          draft.dirtyFields ?? prev.dirtyFields,
-          ctx.path,
-          { type: "swap", from: ctx.from, to: ctx.to }
-        );
-        return arrayDirtyCheck(base, draft, prev, ctx.path, defaultValues);
-      }
-      case ARRAY_REPLACE: {
-        if (!ctx.path) return draft;
-        const prefix = ctx.path + ".";
-        let base = draft.dirtyFields ?? prev.dirtyFields;
-        if (Object.keys(base).some((k) => k.startsWith(prefix))) {
-          const next = {};
-          for (const k of Object.keys(base)) {
-            if (!k.startsWith(prefix) && base[k] !== void 0)
-              next[k] = base[k];
-          }
-          base = next;
-        }
-        return arrayDirtyCheck(base, draft, prev, ctx.path, defaultValues);
       }
       case RESET_FORM:
         return { ...draft, dirtyFields: {} };
@@ -823,14 +1084,19 @@ function dirtyEnhancer(defaultValues) {
         const match = treeMatcher(ctx.path);
         const base = draft.dirtyFields ?? prev.dirtyFields;
         const newValues = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         const next = {};
         for (const k of Object.keys(base)) {
           if (!match(k)) {
             if (base[k] !== void 0) next[k] = base[k];
-          } else if (hasPath(newValues, k)) {
-            const current = getIn(newValues, k);
-            const initial = getIn(defaultValues, k);
-            if (!isEqual(current, initial)) next[k] = true;
+          } else {
+            const idxPath = keyPathToIndexPath(k, ak);
+            if (hasPath(newValues, idxPath)) {
+              const current = getIn(newValues, idxPath);
+              const origIdx = keyPathToIndexPath(k, initialArrayKeys);
+              const initial = getIn(defaultValues, origIdx);
+              if (!isEqual(current, initial)) next[k] = true;
+            }
           }
         }
         return { ...draft, dirtyFields: next };
@@ -855,7 +1121,8 @@ function validateArrayPath(errors, draft, prev, path, registry) {
   const entry = registry.get(path);
   if (entry?.validate && (entry.validateMode ?? "onChange") === "onChange") {
     const values = draft.values ?? prev.values;
-    const error = entry.validate(getIn(values, path));
+    const ak = draft.arrayKeys ?? prev.arrayKeys;
+    const error = entry.validate(getValueAtKeyPath(values, path, ak));
     return { ...draft, errors: { ...errors, [path]: error } };
   }
   return { ...draft, errors };
@@ -869,7 +1136,8 @@ function validationEnhancer(registry) {
         if (!entry?.validate || (entry.validateMode ?? "onChange") !== "onChange")
           return draft;
         const values = draft.values ?? prev.values;
-        const error = entry.validate(getIn(values, ctx.path));
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const error = entry.validate(getValueAtKeyPath(values, ctx.path, ak));
         const base = draft.errors ?? prev.errors;
         return { ...draft, errors: { ...base, [ctx.path]: error } };
       }
@@ -878,7 +1146,8 @@ function validationEnhancer(registry) {
         const entry = registry.get(ctx.path);
         if (!entry?.validate || entry.validateMode !== "onBlur") return draft;
         const values = draft.values ?? prev.values;
-        const error = entry.validate(getIn(values, ctx.path));
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const error = entry.validate(getValueAtKeyPath(values, ctx.path, ak));
         const base = draft.errors ?? prev.errors;
         return { ...draft, errors: { ...base, [ctx.path]: error } };
       }
@@ -899,13 +1168,15 @@ function validationEnhancer(registry) {
       case ASYNC_RESOLVE: {
         if (!ctx.path) return draft;
         const pending = draft.pendingFields ?? prev.pendingFields;
-        if (!pending[ctx.path]) return draft;
         const base = draft.errors ?? prev.errors;
-        if (ctx.value)
+        if (ctx.value) {
+          if (!pending[ctx.path]) return draft;
           return {
             ...draft,
             errors: { ...base, [ctx.path]: ctx.value }
           };
+        }
+        if (base[ctx.path] === void 0) return draft;
         const { [ctx.path]: _, ...rest } = base;
         return { ...draft, errors: rest };
       }
@@ -923,7 +1194,8 @@ function validationEnhancer(registry) {
         const entry = registry.get(ctx.path);
         if (!entry?.validate) return draft;
         const values = draft.values ?? prev.values;
-        const error = entry.validate(getIn(values, ctx.path));
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const error = entry.validate(getValueAtKeyPath(values, ctx.path, ak));
         const base = draft.errors ?? prev.errors;
         return { ...draft, errors: { ...base, [ctx.path]: error } };
       }
@@ -939,59 +1211,43 @@ function validationEnhancer(registry) {
       }
       case ARRAY_REMOVE: {
         if (!ctx.path) return draft;
-        const errors = reindexPathKeyedRecord(
-          draft.errors ?? prev.errors,
-          ctx.path,
-          { type: "remove", index: ctx.index }
-        );
+        const prevKeys = prev.arrayKeys[ctx.path] ?? [];
+        const removedKey = prevKeys[ctx.index];
+        let errors = draft.errors ?? prev.errors;
+        if (removedKey) {
+          errors = removeByPrefix(errors, ctx.path + "." + removedKey);
+        }
         return validateArrayPath(errors, draft, prev, ctx.path, registry);
       }
       case ARRAY_INSERT: {
         if (!ctx.path) return draft;
-        const errors = reindexPathKeyedRecord(
+        return validateArrayPath(
           draft.errors ?? prev.errors,
+          draft,
+          prev,
           ctx.path,
-          { type: "insert", index: ctx.index }
+          registry
         );
-        return validateArrayPath(errors, draft, prev, ctx.path, registry);
       }
-      case ARRAY_MOVE: {
+      case ARRAY_MOVE:
+      case ARRAY_SWAP:
+      case ARRAY_SORT: {
         if (!ctx.path) return draft;
-        const errors = reindexPathKeyedRecord(
+        return validateArrayPath(
           draft.errors ?? prev.errors,
+          draft,
+          prev,
           ctx.path,
-          { type: "move", from: ctx.from, to: ctx.to }
+          registry
         );
-        return validateArrayPath(errors, draft, prev, ctx.path, registry);
-      }
-      case ARRAY_SWAP: {
-        if (!ctx.path) return draft;
-        const errors = reindexPathKeyedRecord(
-          draft.errors ?? prev.errors,
-          ctx.path,
-          { type: "swap", from: ctx.from, to: ctx.to }
-        );
-        return validateArrayPath(errors, draft, prev, ctx.path, registry);
-      }
-      case ARRAY_REPLACE: {
-        if (!ctx.path) return draft;
-        const prefix = ctx.path + ".";
-        let errors = draft.errors ?? prev.errors;
-        if (Object.keys(errors).some((k) => k.startsWith(prefix))) {
-          const next = {};
-          for (const k of Object.keys(errors)) {
-            if (!k.startsWith(prefix)) next[k] = errors[k];
-          }
-          errors = next;
-        }
-        return validateArrayPath(errors, draft, prev, ctx.path, registry);
       }
       case SUBMIT: {
         let errors = draft.errors ?? prev.errors;
         const values = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         const all = registry.getAll();
         all.forEach((entry, path) => {
-          const error = entry.validate ? entry.validate(getIn(values, path)) : void 0;
+          const error = entry.validate ? entry.validate(getValueAtKeyPath(values, path, ak)) : void 0;
           errors = { ...errors, [path]: error };
         });
         return { ...draft, errors };
@@ -1000,12 +1256,16 @@ function validationEnhancer(registry) {
         const match = treeMatcher(ctx.path);
         const base = draft.errors ?? prev.errors;
         const newValues = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         const next = {};
         for (const k of Object.keys(base)) {
           if (!match(k)) {
             next[k] = base[k];
-          } else if (hasPath(newValues, k)) {
-            next[k] = base[k];
+          } else {
+            const idxPath = keyPathToIndexPath(k, ak);
+            if (hasPath(newValues, idxPath)) {
+              next[k] = base[k];
+            }
           }
         }
         return { ...draft, errors: next };
@@ -1023,10 +1283,11 @@ function validationEnhancer(registry) {
         const match = treeMatcher(ctx.path);
         let errors = draft.errors ?? prev.errors;
         const values = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         const all = registry.getAll();
         for (const [path, entry] of all) {
           if (!match(path)) continue;
-          const error = entry.validate ? entry.validate(getIn(values, path)) : void 0;
+          const error = entry.validate ? entry.validate(getValueAtKeyPath(values, path, ak)) : void 0;
           errors = { ...errors, [path]: error };
         }
         return { ...draft, errors };
@@ -1045,13 +1306,26 @@ function validationEnhancer(registry) {
 }
 
 // src/layers/schemaValidation.ts
-function schemaValidateArrayPath(ctx, prev, draft, resolver, resolverMode) {
-  if (!ctx.path || resolverMode !== "onChange") return draft;
+function translateAllErrors(allErrors, arrayKeys) {
+  const translated = {};
+  for (const [p, error] of Object.entries(allErrors)) {
+    translated[indexPathToKeyPath(p, arrayKeys)] = error;
+  }
+  return translated;
+}
+function resolverErrorForPath(resolver, values, keyPath, arrayKeys) {
+  const allErrors = resolver.validate(values);
+  const indexPath = keyPathToIndexPath(keyPath, arrayKeys);
+  return allErrors[indexPath];
+}
+function schemaValidateSinglePath(ctx, prev, draft, resolver) {
+  if (!ctx.path) return draft;
   if (draft.errors?.[ctx.path]) return draft;
   const values = draft.values ?? prev.values;
-  const allErrors = resolver.validate(values);
+  const ak = draft.arrayKeys ?? prev.arrayKeys;
+  const error = resolverErrorForPath(resolver, values, ctx.path, ak);
   const base = draft.errors ?? prev.errors;
-  return { ...draft, errors: { ...base, [ctx.path]: allErrors[ctx.path] } };
+  return { ...draft, errors: { ...base, [ctx.path]: error } };
 }
 function schemaValidationEnhancer(resolver, mode) {
   const resolverMode = mode ?? "onChange";
@@ -1059,92 +1333,31 @@ function schemaValidationEnhancer(resolver, mode) {
     switch (ctx.type) {
       case SET_VALUE: {
         if (!ctx.path || resolverMode !== "onChange") return draft;
-        if (draft.errors?.[ctx.path]) return draft;
-        const values = draft.values ?? prev.values;
-        const allErrors = resolver.validate(values);
-        const base = draft.errors ?? prev.errors;
-        return {
-          ...draft,
-          errors: { ...base, [ctx.path]: allErrors[ctx.path] }
-        };
+        return schemaValidateSinglePath(ctx, prev, draft, resolver);
       }
       case BLUR: {
         if (!ctx.path || resolverMode !== "onBlur") return draft;
-        if (draft.errors?.[ctx.path]) return draft;
-        const values = draft.values ?? prev.values;
-        const allErrors = resolver.validate(values);
-        const base = draft.errors ?? prev.errors;
-        return {
-          ...draft,
-          errors: { ...base, [ctx.path]: allErrors[ctx.path] }
-        };
+        return schemaValidateSinglePath(ctx, prev, draft, resolver);
       }
-      case VALIDATE_FIELD: {
-        if (!ctx.path) return draft;
-        if (draft.errors?.[ctx.path]) return draft;
-        const values = draft.values ?? prev.values;
-        const allErrors = resolver.validate(values);
-        const base = draft.errors ?? prev.errors;
-        return {
-          ...draft,
-          errors: { ...base, [ctx.path]: allErrors[ctx.path] }
-        };
-      }
+      case VALIDATE_FIELD:
+        return schemaValidateSinglePath(ctx, prev, draft, resolver);
       case ARRAY_APPEND:
-        return schemaValidateArrayPath(
-          ctx,
-          prev,
-          draft,
-          resolver,
-          resolverMode
-        );
       case ARRAY_REMOVE:
-        return schemaValidateArrayPath(
-          ctx,
-          prev,
-          draft,
-          resolver,
-          resolverMode
-        );
       case ARRAY_INSERT:
-        return schemaValidateArrayPath(
-          ctx,
-          prev,
-          draft,
-          resolver,
-          resolverMode
-        );
       case ARRAY_MOVE:
-        return schemaValidateArrayPath(
-          ctx,
-          prev,
-          draft,
-          resolver,
-          resolverMode
-        );
       case ARRAY_SWAP:
-        return schemaValidateArrayPath(
-          ctx,
-          prev,
-          draft,
-          resolver,
-          resolverMode
-        );
-      case ARRAY_REPLACE:
-        return schemaValidateArrayPath(
-          ctx,
-          prev,
-          draft,
-          resolver,
-          resolverMode
-        );
+      case ARRAY_SORT: {
+        if (!ctx.path || resolverMode !== "onChange") return draft;
+        return schemaValidateSinglePath(ctx, prev, draft, resolver);
+      }
       case SUBMIT: {
         const values = draft.values ?? prev.values;
-        const allErrors = resolver.validate(values);
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const allErrors = translateAllErrors(resolver.validate(values), ak);
         let errors = draft.errors ?? prev.errors;
         for (const [path, error] of Object.entries(allErrors)) {
           if (errors[path]) continue;
-          if (error) errors = { ...errors, [path]: error };
+          errors = { ...errors, [path]: error };
         }
         return { ...draft, errors };
       }
@@ -1152,24 +1365,26 @@ function schemaValidationEnhancer(resolver, mode) {
         if (resolverMode !== "onChange") return draft;
         const match = treeMatcher(ctx.path);
         const values = draft.values ?? prev.values;
-        const allErrors = resolver.validate(values);
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const allErrors = translateAllErrors(resolver.validate(values), ak);
         let errors = draft.errors ?? prev.errors;
         for (const [path, error] of Object.entries(allErrors)) {
           if (!match(path)) continue;
           if (errors[path]) continue;
-          if (error) errors = { ...errors, [path]: error };
+          errors = { ...errors, [path]: error };
         }
         return { ...draft, errors };
       }
       case VALIDATE_BRANCH: {
         const match = treeMatcher(ctx.path);
         const values = draft.values ?? prev.values;
-        const allErrors = resolver.validate(values);
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const allErrors = translateAllErrors(resolver.validate(values), ak);
         let errors = draft.errors ?? prev.errors;
         for (const [path, error] of Object.entries(allErrors)) {
           if (!match(path)) continue;
           if (errors[path]) continue;
-          if (error) errors = { ...errors, [path]: error };
+          errors = { ...errors, [path]: error };
         }
         return { ...draft, errors };
       }
@@ -1191,7 +1406,8 @@ function triggerArrayAsync(pendingBase, draft, prev, path, registry, dispatch) {
   }
   if ((entry.asyncValidateMode ?? "onChange") !== "onChange")
     return { ...draft, pendingFields: pendingBase };
-  const value = getIn(draft.values ?? prev.values, path);
+  const ak = draft.arrayKeys ?? prev.arrayKeys;
+  const value = getValueAtKeyPath(draft.values ?? prev.values, path, ak);
   const errors = draft.errors ?? prev.errors;
   const { [path]: _, ...clearedErrors } = errors;
   const pending = { ...pendingBase, [path]: true };
@@ -1202,34 +1418,22 @@ function triggerArrayAsync(pendingBase, draft, prev, path, registry, dispatch) {
 }
 function runAsync(path, value, entry, dispatch, registry) {
   if (entry.debounce && entry.debounce > 0) {
-    const sessionId = registry.createSession(path, 0);
     registry.nextVersion(path);
     registry.setTimer(
       path,
       setTimeout(() => {
-        const session = registry.getSession(sessionId);
-        if (!session) return;
-        const currentPath = session.path;
-        const version = registry.nextVersion(currentPath);
-        session.version = version;
+        const version = registry.nextVersion(path);
         void entry.asyncValidate(value).then((error) => {
-          const s = registry.getSession(sessionId);
-          if (!s) return;
-          if (registry.getVersion(s.path) !== s.version) return;
-          dispatch({ type: ASYNC_RESOLVE, path: s.path, value: error });
-          registry.deleteSession(sessionId);
+          if (registry.getVersion(path) !== version) return;
+          dispatch({ type: ASYNC_RESOLVE, path, value: error });
         });
       }, entry.debounce)
     );
   } else {
     const version = registry.nextVersion(path);
-    const sessionId = registry.createSession(path, version);
     void entry.asyncValidate(value).then((error) => {
-      const session = registry.getSession(sessionId);
-      if (!session) return;
-      if (registry.getVersion(session.path) !== session.version) return;
-      dispatch({ type: ASYNC_RESOLVE, path: session.path, value: error });
-      registry.deleteSession(sessionId);
+      if (registry.getVersion(path) !== version) return;
+      dispatch({ type: ASYNC_RESOLVE, path, value: error });
     });
   }
 }
@@ -1252,7 +1456,8 @@ function asyncValidationEnhancer(registry, dispatch) {
           return draft;
         const dirty = (draft.dirtyFields ?? prev.dirtyFields)[ctx.path];
         if (!dirty) return draft;
-        const value = getIn(draft.values ?? prev.values, ctx.path);
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const value = getValueAtKeyPath(draft.values ?? prev.values, ctx.path, ak);
         const path = ctx.path;
         const errors = draft.errors ?? prev.errors;
         const { [path]: _, ...clearedErrors } = errors;
@@ -1278,7 +1483,8 @@ function asyncValidationEnhancer(registry, dispatch) {
         if (entry.asyncValidateMode !== "onBlur") return draft;
         const dirty = (draft.dirtyFields ?? prev.dirtyFields)[ctx.path];
         if (!dirty) return draft;
-        const value = getIn(draft.values ?? prev.values, ctx.path);
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const value = getValueAtKeyPath(draft.values ?? prev.values, ctx.path, ak);
         const path = ctx.path;
         const errors = draft.errors ?? prev.errors;
         const { [path]: _, ...clearedErrors } = errors;
@@ -1310,12 +1516,15 @@ function asyncValidationEnhancer(registry, dispatch) {
       }
       case ARRAY_REMOVE: {
         if (!ctx.path) return draft;
-        registry.reindex(ctx.path, { type: "remove", index: ctx.index });
-        const pendingBase = reindexPathKeyedRecord(
-          draft.pendingFields ?? prev.pendingFields,
-          ctx.path,
-          { type: "remove", index: ctx.index }
-        );
+        const prevKeys = prev.arrayKeys[ctx.path] ?? [];
+        const removedKey = prevKeys[ctx.index];
+        if (removedKey) {
+          registry.removeByPrefix(ctx.path + "." + removedKey);
+        }
+        let pendingBase = draft.pendingFields ?? prev.pendingFields;
+        if (removedKey) {
+          pendingBase = removeByPrefix(pendingBase, ctx.path + "." + removedKey);
+        }
         return triggerArrayAsync(
           pendingBase,
           draft,
@@ -1327,12 +1536,7 @@ function asyncValidationEnhancer(registry, dispatch) {
       }
       case ARRAY_INSERT: {
         if (!ctx.path) return draft;
-        registry.reindex(ctx.path, { type: "insert", index: ctx.index });
-        const pendingBase = reindexPathKeyedRecord(
-          draft.pendingFields ?? prev.pendingFields,
-          ctx.path,
-          { type: "insert", index: ctx.index }
-        );
+        const pendingBase = draft.pendingFields ?? prev.pendingFields;
         return triggerArrayAsync(
           pendingBase,
           draft,
@@ -1342,61 +1546,11 @@ function asyncValidationEnhancer(registry, dispatch) {
           dispatch
         );
       }
-      case ARRAY_MOVE: {
+      case ARRAY_MOVE:
+      case ARRAY_SWAP:
+      case ARRAY_SORT: {
         if (!ctx.path) return draft;
-        const op = { type: "move", from: ctx.from, to: ctx.to };
-        registry.reindex(ctx.path, op);
-        const pendingBase = reindexPathKeyedRecord(
-          draft.pendingFields ?? prev.pendingFields,
-          ctx.path,
-          op
-        );
-        return triggerArrayAsync(
-          pendingBase,
-          draft,
-          prev,
-          ctx.path,
-          registry,
-          dispatch
-        );
-      }
-      case ARRAY_SWAP: {
-        if (!ctx.path) return draft;
-        const op = { type: "swap", from: ctx.from, to: ctx.to };
-        registry.reindex(ctx.path, op);
-        const pendingBase = reindexPathKeyedRecord(
-          draft.pendingFields ?? prev.pendingFields,
-          ctx.path,
-          op
-        );
-        return triggerArrayAsync(
-          pendingBase,
-          draft,
-          prev,
-          ctx.path,
-          registry,
-          dispatch
-        );
-      }
-      case ARRAY_REPLACE: {
-        if (!ctx.path) return draft;
-        const prefix = ctx.path + ".";
-        const all = registry.getAll();
-        for (const [p] of all) {
-          if (p.startsWith(prefix)) {
-            registry.nextVersion(p);
-            registry.clearTimer(p);
-          }
-        }
-        let pendingBase = draft.pendingFields ?? prev.pendingFields;
-        if (Object.keys(pendingBase).some((k) => k.startsWith(prefix))) {
-          const next = {};
-          for (const k of Object.keys(pendingBase)) {
-            if (!k.startsWith(prefix) && pendingBase[k] !== void 0)
-              next[k] = pendingBase[k];
-          }
-          pendingBase = next;
-        }
+        const pendingBase = draft.pendingFields ?? prev.pendingFields;
         return triggerArrayAsync(
           pendingBase,
           draft,
@@ -1416,11 +1570,15 @@ function asyncValidationEnhancer(registry, dispatch) {
       case SET_TREE_VALUE: {
         const match = treeMatcher(ctx.path);
         const newValues = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         const all = registry.getAll();
         for (const [path] of all) {
-          if (match(path) && !hasPath(newValues, path)) {
-            registry.nextVersion(path);
-            registry.clearTimer(path);
+          if (match(path)) {
+            const idxPath = keyPathToIndexPath(path, ak);
+            if (!hasPath(newValues, idxPath)) {
+              registry.nextVersion(path);
+              registry.clearTimer(path);
+            }
           }
         }
         const base = draft.pendingFields ?? prev.pendingFields;
@@ -1428,8 +1586,11 @@ function asyncValidationEnhancer(registry, dispatch) {
         for (const k of Object.keys(base)) {
           if (!match(k)) {
             if (base[k] !== void 0) next[k] = base[k];
-          } else if (hasPath(newValues, k) && base[k] !== void 0) {
-            next[k] = base[k];
+          } else {
+            const idxPath = keyPathToIndexPath(k, ak);
+            if (hasPath(newValues, idxPath) && base[k] !== void 0) {
+              next[k] = base[k];
+            }
           }
         }
         return { ...draft, pendingFields: next };
@@ -1453,13 +1614,14 @@ function asyncValidationEnhancer(registry, dispatch) {
       case VALIDATE_BRANCH: {
         const match = treeMatcher(ctx.path);
         const values = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         let errors = draft.errors ?? prev.errors;
         let pending = draft.pendingFields ?? prev.pendingFields;
         const all = registry.getAll();
         for (const [path, entry] of all) {
           if (!match(path) || !entry.asyncValidate) continue;
           if (errors[path]) continue;
-          const value = getIn(values, path);
+          const value = getValueAtKeyPath(values, path, ak);
           const { [path]: _, ...clearedErrors } = errors;
           errors = clearedErrors;
           pending = { ...pending, [path]: true };
@@ -1505,27 +1667,8 @@ function submitEnhancer() {
 
 // src/core/createForm.ts
 function createForm(config) {
-  const baseInitialState = {
-    values: {},
-    dirtyFields: {},
-    touchedFields: {},
-    errors: {},
-    pendingFields: {},
-    focusedField: null,
-    isSubmitting: false,
-    submitCount: 0,
-    isSubmitSuccessful: false,
-    ...config.initialState
-  };
   const previewEnhancers = config.enhancers ? config.enhancers([]) : [];
-  let initialState = baseInitialState;
-  for (const e of previewEnhancers) {
-    if (e.initialState) {
-      const patch = typeof e.initialState === "function" ? e.initialState(initialState) : e.initialState;
-      initialState = { ...initialState, ...patch };
-    }
-  }
-  const defaultValues = initialState.values;
+  const { initialState, defaultValues, initialArrayKeys } = buildInitialState(config.initialState, previewEnhancers);
   const initializer = () => initialState;
   const store = vanilla.createStore()(
     config.middleware ? config.middleware(initializer) : initializer
@@ -1534,10 +1677,13 @@ function createForm(config) {
   const defaultEnhancers = [
     {
       name: "values",
-      enhancer: valuesEnhancer(defaultValues)
+      enhancer: valuesEnhancer(defaultValues, initialArrayKeys)
     },
     { name: "touched", enhancer: touchedEnhancer() },
-    { name: "dirty", enhancer: dirtyEnhancer(defaultValues) },
+    {
+      name: "dirty",
+      enhancer: dirtyEnhancer(defaultValues, initialArrayKeys)
+    },
     {
       name: "validation",
       enhancer: validationEnhancer(registry)
@@ -1559,6 +1705,10 @@ function createForm(config) {
   ];
   const enhancers = config.enhancers ? config.enhancers(defaultEnhancers) : defaultEnhancers;
   function dispatch(ctx) {
+    if (ctx.path) {
+      const normalized = indexPathToKeyPath(ctx.path, store.getState().arrayKeys);
+      if (normalized !== ctx.path) ctx = { ...ctx, path: normalized };
+    }
     const prev = store.getState();
     let draft = {};
     const skip = ctx.options?.disableLayers;
@@ -1617,8 +1767,14 @@ function createForm(config) {
         dispatch({ type: SUBMIT_SUCCESS });
       }
     },
-    registerField: (path, entry) => registry.register(path, entry),
-    unregisterField: (path) => registry.unregister(path),
+    registerField: (path, entry) => {
+      const kp = indexPathToKeyPath(path, store.getState().arrayKeys);
+      registry.register(kp, entry);
+    },
+    unregisterField: (path) => {
+      const kp = indexPathToKeyPath(path, store.getState().arrayKeys);
+      registry.unregister(kp);
+    },
     select
   };
 }
@@ -1654,7 +1810,13 @@ exports.asyncValidationEnhancer = asyncValidationEnhancer;
 exports.createForm = createForm;
 exports.dirtyEnhancer = dirtyEnhancer;
 exports.getIn = getIn;
-exports.reindexPathKeyedRecord = reindexPathKeyedRecord;
+exports.getValueAtKeyPath = getValueAtKeyPath;
+exports.indexPathToKeyPath = indexPathToKeyPath;
+exports.isArrayKey = isArrayKey;
+exports.keyPathToIndexPath = keyPathToIndexPath;
+exports.removeByPrefix = removeByPrefix;
+exports.removeKeyedEntries = removeKeyedEntries;
+exports.scanArrayKeys = scanArrayKeys;
 exports.schemaValidationEnhancer = schemaValidationEnhancer;
 exports.standardSchemaResolver = standardSchemaResolver;
 exports.submitEnhancer = submitEnhancer;

@@ -3,22 +3,25 @@ import type { FormState, Dispatch } from "../core/types";
 import type { FieldNamespace } from "./types";
 import type { Path, PathValue } from "../types/paths";
 import * as A from "../core/actions";
-import { getIn } from "../utils/paths";
 import { createFieldSelectors } from "./selectors";
+import { indexPathToKeyPath, getValueAtKeyPath } from "../utils/arrayKeys";
 
 export function createFieldNamespace<TValues, TError = string>(
   store: StoreApi<FormState<TValues, TError>>,
   dispatch: Dispatch,
 ): FieldNamespace<TValues, TError> {
   const s = () => store.getState();
+  const kp = (path: string) => indexPathToKeyPath(path, s().arrayKeys);
 
   return {
-    getValue: <P extends Path<TValues>>(path: P) =>
-      getIn(s().values, path) as PathValue<TValues, P>,
-    isDirty: (path) => s().dirtyFields[path] === true,
-    isTouched: (path) => s().touchedFields[path] === true,
-    isPending: (path) => s().pendingFields[path] === true,
-    getError: (path) => s().errors[path],
+    getValue: <P extends Path<TValues>>(path: P) => {
+      const state = s();
+      return getValueAtKeyPath(state.values, path, state.arrayKeys) as PathValue<TValues, P>;
+    },
+    isDirty: (path) => s().dirtyFields[kp(path)] === true,
+    isTouched: (path) => s().touchedFields[kp(path)] === true,
+    isPending: (path) => s().pendingFields[kp(path)] === true,
+    getError: (path) => s().errors[kp(path)],
 
     setValue: (path: string, v: unknown, opts?: { disableLayers?: string[] }) =>
       dispatch({ type: A.SET_VALUE, path, value: v, options: opts }),

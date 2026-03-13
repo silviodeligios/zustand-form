@@ -1,9 +1,9 @@
 import type { Enhancer, Dispatch } from "../../core/types";
 import type { FieldRegistry } from "../../validation/registry";
 import * as A from "../../core/actions";
-import { getIn, hasPath } from "../../utils/paths";
+import { hasPath } from "../../utils/paths";
 import { treeMatcher } from "../../utils/tree";
-import { reindexPathKeyedRecord } from "../../utils/arrayReindex";
+import { removeByPrefix, getValueAtKeyPath, keyPathToIndexPath } from "../../utils/arrayKeys";
 import { triggerArrayAsync, runAsync } from "./utils";
 
 export function asyncValidationEnhancer<TValues, TError = string>(
@@ -16,7 +16,6 @@ export function asyncValidationEnhancer<TValues, TError = string>(
         if (!ctx.path) return draft;
         const entry = registry.get(ctx.path);
         if (!entry?.asyncValidate) return draft;
-        // Cancel in-flight async if sync error present (before dirty/mode checks)
         if (draft.errors?.[ctx.path]) {
           registry.nextVersion(ctx.path);
           registry.clearTimer(ctx.path);
@@ -28,7 +27,8 @@ export function asyncValidationEnhancer<TValues, TError = string>(
           return draft;
         const dirty = (draft.dirtyFields ?? prev.dirtyFields)[ctx.path];
         if (!dirty) return draft;
-        const value = getIn(draft.values ?? prev.values, ctx.path);
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const value = getValueAtKeyPath(draft.values ?? prev.values, ctx.path, ak);
         const path = ctx.path;
         const errors = draft.errors ?? prev.errors;
         const { [path]: _, ...clearedErrors } = errors;
@@ -45,7 +45,6 @@ export function asyncValidationEnhancer<TValues, TError = string>(
         if (!ctx.path) return draft;
         const entry = registry.get(ctx.path);
         if (!entry?.asyncValidate) return draft;
-        // Cancel in-flight async if sync error present (before dirty/mode checks)
         if (draft.errors?.[ctx.path]) {
           registry.nextVersion(ctx.path);
           registry.clearTimer(ctx.path);
@@ -56,7 +55,8 @@ export function asyncValidationEnhancer<TValues, TError = string>(
         if (entry.asyncValidateMode !== "onBlur") return draft;
         const dirty = (draft.dirtyFields ?? prev.dirtyFields)[ctx.path];
         if (!dirty) return draft;
-        const value = getIn(draft.values ?? prev.values, ctx.path);
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
+        const value = getValueAtKeyPath(draft.values ?? prev.values, ctx.path, ak);
         const path = ctx.path;
         const errors = draft.errors ?? prev.errors;
         const { [path]: _, ...clearedErrors } = errors;
@@ -89,12 +89,15 @@ export function asyncValidationEnhancer<TValues, TError = string>(
       }
       case A.ARRAY_REMOVE: {
         if (!ctx.path) return draft;
-        registry.reindex(ctx.path, { type: "remove", index: ctx.index! });
-        const pendingBase = reindexPathKeyedRecord(
-          draft.pendingFields ?? prev.pendingFields,
-          ctx.path,
-          { type: "remove", index: ctx.index! },
-        );
+        const prevKeys = prev.arrayKeys[ctx.path] ?? [];
+        const removedKey = prevKeys[ctx.index!];
+        if (removedKey) {
+          registry.removeByPrefix(ctx.path + "." + removedKey);
+        }
+        let pendingBase = draft.pendingFields ?? prev.pendingFields;
+        if (removedKey) {
+          pendingBase = removeByPrefix(pendingBase, ctx.path + "." + removedKey);
+        }
         return triggerArrayAsync(
           pendingBase,
           draft,
@@ -106,12 +109,7 @@ export function asyncValidationEnhancer<TValues, TError = string>(
       }
       case A.ARRAY_INSERT: {
         if (!ctx.path) return draft;
-        registry.reindex(ctx.path, { type: "insert", index: ctx.index! });
-        const pendingBase = reindexPathKeyedRecord(
-          draft.pendingFields ?? prev.pendingFields,
-          ctx.path,
-          { type: "insert", index: ctx.index! },
-        );
+        const pendingBase = draft.pendingFields ?? prev.pendingFields;
         return triggerArrayAsync(
           pendingBase,
           draft,
@@ -121,61 +119,11 @@ export function asyncValidationEnhancer<TValues, TError = string>(
           dispatch,
         );
       }
-      case A.ARRAY_MOVE: {
+      case A.ARRAY_MOVE:
+      case A.ARRAY_SWAP:
+      case A.ARRAY_SORT: {
         if (!ctx.path) return draft;
-        const op = { type: "move" as const, from: ctx.from!, to: ctx.to! };
-        registry.reindex(ctx.path, op);
-        const pendingBase = reindexPathKeyedRecord(
-          draft.pendingFields ?? prev.pendingFields,
-          ctx.path,
-          op,
-        );
-        return triggerArrayAsync(
-          pendingBase,
-          draft,
-          prev,
-          ctx.path,
-          registry,
-          dispatch,
-        );
-      }
-      case A.ARRAY_SWAP: {
-        if (!ctx.path) return draft;
-        const op = { type: "swap" as const, from: ctx.from!, to: ctx.to! };
-        registry.reindex(ctx.path, op);
-        const pendingBase = reindexPathKeyedRecord(
-          draft.pendingFields ?? prev.pendingFields,
-          ctx.path,
-          op,
-        );
-        return triggerArrayAsync(
-          pendingBase,
-          draft,
-          prev,
-          ctx.path,
-          registry,
-          dispatch,
-        );
-      }
-      case A.ARRAY_REPLACE: {
-        if (!ctx.path) return draft;
-        const prefix = ctx.path + ".";
-        const all = registry.getAll();
-        for (const [p] of all) {
-          if (p.startsWith(prefix)) {
-            registry.nextVersion(p);
-            registry.clearTimer(p);
-          }
-        }
-        let pendingBase = draft.pendingFields ?? prev.pendingFields;
-        if (Object.keys(pendingBase).some((k) => k.startsWith(prefix))) {
-          const next: Record<string, boolean> = {};
-          for (const k of Object.keys(pendingBase)) {
-            if (!k.startsWith(prefix) && pendingBase[k] !== undefined)
-              next[k] = pendingBase[k];
-          }
-          pendingBase = next;
-        }
+        const pendingBase = draft.pendingFields ?? prev.pendingFields;
         return triggerArrayAsync(
           pendingBase,
           draft,
@@ -196,11 +144,15 @@ export function asyncValidationEnhancer<TValues, TError = string>(
       case A.SET_TREE_VALUE: {
         const match = treeMatcher(ctx.path);
         const newValues = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         const all = registry.getAll();
         for (const [path] of all) {
-          if (match(path) && !hasPath(newValues, path)) {
-            registry.nextVersion(path);
-            registry.clearTimer(path);
+          if (match(path)) {
+            const idxPath = keyPathToIndexPath(path, ak);
+            if (!hasPath(newValues, idxPath)) {
+              registry.nextVersion(path);
+              registry.clearTimer(path);
+            }
           }
         }
         const base = draft.pendingFields ?? prev.pendingFields;
@@ -208,8 +160,11 @@ export function asyncValidationEnhancer<TValues, TError = string>(
         for (const k of Object.keys(base)) {
           if (!match(k)) {
             if (base[k] !== undefined) next[k] = base[k];
-          } else if (hasPath(newValues, k) && base[k] !== undefined) {
-            next[k] = base[k];
+          } else {
+            const idxPath = keyPathToIndexPath(k, ak);
+            if (hasPath(newValues, idxPath) && base[k] !== undefined) {
+              next[k] = base[k];
+            }
           }
         }
         return { ...draft, pendingFields: next };
@@ -233,13 +188,14 @@ export function asyncValidationEnhancer<TValues, TError = string>(
       case A.VALIDATE_BRANCH: {
         const match = treeMatcher(ctx.path);
         const values = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         let errors = draft.errors ?? prev.errors;
         let pending = draft.pendingFields ?? prev.pendingFields;
         const all = registry.getAll();
         for (const [path, entry] of all) {
           if (!match(path) || !entry.asyncValidate) continue;
           if (errors[path]) continue;
-          const value = getIn(values, path);
+          const value = getValueAtKeyPath(values, path, ak);
           const { [path]: _, ...clearedErrors } = errors;
           errors = clearedErrors;
           pending = { ...pending, [path]: true };

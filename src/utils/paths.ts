@@ -21,6 +21,21 @@ export function getIn(obj: unknown, path: string): unknown {
   return current;
 }
 
+/** Immutable deep delete of a property at a dot-path with structural sharing */
+export function deleteIn<T>(obj: T, path: string): T {
+  const keys = path.split(".");
+  if (keys.length === 1) {
+    const { [keys[0]!]: _, ...rest } = obj as Record<string, unknown>;
+    return rest as T;
+  }
+  const parentPath = keys.slice(0, -1).join(".");
+  const lastKey = keys[keys.length - 1]!;
+  const parent = getIn(obj, parentPath);
+  if (parent == null || typeof parent !== "object") return obj;
+  const { [lastKey]: _, ...rest } = parent as Record<string, unknown>;
+  return setIn(obj, parentPath, rest);
+}
+
 /** Deep get a value expected to be an array (returns [] if missing or not array) */
 export function getInArray(obj: unknown, path: string): unknown[] {
   const val = getIn(obj, path);

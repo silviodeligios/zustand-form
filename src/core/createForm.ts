@@ -13,6 +13,8 @@ import { createTreeNamespace } from "../tree/createTree";
 import type { FormResolver, FieldValidateMode } from "../validation/types";
 import { createFieldRegistry } from "../validation/registry";
 import { isThenable } from "../utils/compare";
+import { indexPathToKeyPath } from "../utils/arrayKeys";
+import { buildInitialState } from "./initialState";
 import { valuesEnhancer } from "../layers/values";
 import { touchedEnhancer } from "../layers/touched";
 import { dirtyEnhancer } from "../layers/dirty";
@@ -40,35 +42,9 @@ export interface FormConfig<TValues, TError = string> {
 export function createForm<TValues, TError = string>(
   config: FormConfig<TValues, TError>,
 ): Form<TValues, TError> {
-  const baseInitialState: FormState<TValues, TError> = {
-    values: {} as TValues,
-    dirtyFields: {},
-    touchedFields: {},
-    errors: {},
-    pendingFields: {},
-    focusedField: null,
-    isSubmitting: false,
-    submitCount: 0,
-    isSubmitSuccessful: false,
-    ...config.initialState,
-  };
-
-  // Preview user enhancers (without defaults) to collect initialState contributions
-  // before building defaultEnhancers. This ensures defaultValues is correct for
-  // valuesEnhancer and dirtyEnhancer (e.g. reset will use the right values).
   const previewEnhancers = config.enhancers ? config.enhancers([]) : [];
-  let initialState = baseInitialState;
-  for (const e of previewEnhancers) {
-    if (e.initialState) {
-      const patch =
-        typeof e.initialState === "function"
-          ? e.initialState(initialState)
-          : e.initialState;
-      initialState = { ...initialState, ...patch };
-    }
-  }
-
-  const defaultValues = initialState.values;
+  const { initialState, defaultValues, initialArrayKeys } =
+    buildInitialState<TValues, TError>(config.initialState, previewEnhancers);
 
   const initializer: StateCreator<FormState<TValues, TError>> = () =>
     initialState;
@@ -80,10 +56,13 @@ export function createForm<TValues, TError = string>(
   const defaultEnhancers: NamedEnhancer<TValues, TError>[] = [
     {
       name: "values",
-      enhancer: valuesEnhancer<TValues, TError>(defaultValues),
+      enhancer: valuesEnhancer<TValues, TError>(defaultValues, initialArrayKeys),
     },
     { name: "touched", enhancer: touchedEnhancer<TValues, TError>() },
-    { name: "dirty", enhancer: dirtyEnhancer<TValues, TError>(defaultValues) },
+    {
+      name: "dirty",
+      enhancer: dirtyEnhancer<TValues, TError>(defaultValues, initialArrayKeys),
+    },
     {
       name: "validation",
       enhancer: validationEnhancer<TValues, TError>(registry),
@@ -111,6 +90,12 @@ export function createForm<TValues, TError = string>(
     : defaultEnhancers;
 
   function dispatch(ctx: ActionContext): void {
+    // Normalize: translate index-based paths to key-based so all
+    // enhancers always see stable key paths (no-op if already key-based).
+    if (ctx.path) {
+      const normalized = indexPathToKeyPath(ctx.path, store.getState().arrayKeys);
+      if (normalized !== ctx.path) ctx = { ...ctx, path: normalized };
+    }
     const prev = store.getState();
     let draft: Partial<FormState<TValues, TError>> = {};
     const skip = ctx.options?.disableLayers;
@@ -120,7 +105,6 @@ export function createForm<TValues, TError = string>(
     }
     if (Object.keys(draft).length > 0) {
       const action = ctx.path ? `${ctx.type}:${ctx.path}` : ctx.type;
-      // zustand setState accepts 3-arg form for devtools
       (
         store.setState as (
           fn: (s: FormState<TValues, TError>) => FormState<TValues, TError>,
@@ -179,8 +163,14 @@ export function createForm<TValues, TError = string>(
         dispatch({ type: A.SUBMIT_SUCCESS });
       }
     },
-    registerField: (path, entry) => registry.register(path, entry),
-    unregisterField: (path) => registry.unregister(path),
+    registerField: (path, entry) => {
+      const kp = indexPathToKeyPath(path, store.getState().arrayKeys);
+      registry.register(kp, entry);
+    },
+    unregisterField: (path) => {
+      const kp = indexPathToKeyPath(path, store.getState().arrayKeys);
+      registry.unregister(kp);
+    },
     select,
   };
 }

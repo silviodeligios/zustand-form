@@ -1,8 +1,9 @@
-import type { Dispatch, FormState } from "../../core/types";
+import type { Dispatch } from "../../core/types";
 import type { FieldRegistry } from "../../validation/registry";
 import type { FieldValidatorEntry } from "../../validation/types";
+import type { FormState } from "../../core/types";
 import * as A from "../../core/actions";
-import { getIn } from "../../utils/paths";
+import { getValueAtKeyPath } from "../../utils/arrayKeys";
 
 export function triggerArrayAsync<TValues, TError>(
   pendingBase: Record<string, boolean>,
@@ -22,7 +23,8 @@ export function triggerArrayAsync<TValues, TError>(
   }
   if ((entry.asyncValidateMode ?? "onChange") !== "onChange")
     return { ...draft, pendingFields: pendingBase };
-  const value = getIn(draft.values ?? prev.values, path);
+  const ak = draft.arrayKeys ?? prev.arrayKeys;
+  const value = getValueAtKeyPath(draft.values ?? prev.values, path, ak);
   const errors = draft.errors ?? prev.errors;
   const { [path]: _, ...clearedErrors } = errors;
   const pending = { ...pendingBase, [path]: true };
@@ -40,35 +42,22 @@ export function runAsync<TError>(
   registry: FieldRegistry<TError>,
 ): void {
   if (entry.debounce && entry.debounce > 0) {
-    // Create session immediately so reindex can update its path during debounce wait
-    const sessionId = registry.createSession(path, 0);
-    registry.nextVersion(path); // invalidate any previous debounce
+    registry.nextVersion(path);
     registry.setTimer(
       path,
       setTimeout(() => {
-        const session = registry.getSession(sessionId);
-        if (!session) return;
-        const currentPath = session.path;
-        const version = registry.nextVersion(currentPath);
-        session.version = version;
+        const version = registry.nextVersion(path);
         void entry.asyncValidate!(value).then((error) => {
-          const s = registry.getSession(sessionId);
-          if (!s) return;
-          if (registry.getVersion(s.path) !== s.version) return;
-          dispatch({ type: A.ASYNC_RESOLVE, path: s.path, value: error });
-          registry.deleteSession(sessionId);
+          if (registry.getVersion(path) !== version) return;
+          dispatch({ type: A.ASYNC_RESOLVE, path, value: error });
         });
       }, entry.debounce),
     );
   } else {
     const version = registry.nextVersion(path);
-    const sessionId = registry.createSession(path, version);
     void entry.asyncValidate!(value).then((error) => {
-      const session = registry.getSession(sessionId);
-      if (!session) return;
-      if (registry.getVersion(session.path) !== session.version) return;
-      dispatch({ type: A.ASYNC_RESOLVE, path: session.path, value: error });
-      registry.deleteSession(sessionId);
+      if (registry.getVersion(path) !== version) return;
+      dispatch({ type: A.ASYNC_RESOLVE, path, value: error });
     });
   }
 }

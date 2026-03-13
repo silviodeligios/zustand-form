@@ -25,9 +25,14 @@ export {
   asyncValidationEnhancer,
 } from "./layers";
 export {
-  reindexPathKeyedRecord,
-  type ArrayReindexOp,
-} from "./utils/arrayReindex";
+  isArrayKey,
+  indexPathToKeyPath,
+  keyPathToIndexPath,
+  scanArrayKeys,
+  removeByPrefix,
+  removeKeyedEntries,
+  getValueAtKeyPath,
+} from "./utils/arrayKeys";
 
 // Field
 export type { FieldNamespace, FieldState, InputProps } from "./field/types";

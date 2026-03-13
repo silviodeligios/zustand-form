@@ -1,5 +1,6 @@
 import type { FormState } from "../core/types";
 import { cached } from "../utils/cache";
+import { indexPathToKeyPath } from "../utils/arrayKeys";
 
 export function createTreeSelectors<TValues, TError = string>(
   getMatcher: (path?: string) => (key: string) => boolean,
@@ -23,79 +24,84 @@ export function createTreeSelectors<TValues, TError = string>(
 
   const cacheKey = (path?: string) => path ?? "";
 
+  /** Resolve path to key-based using current arrayKeys, return cached matcher. */
+  function matchFor(path: string | undefined, ak: Record<string, string[]>) {
+    return getMatcher(path ? indexPathToKeyPath(path, ak) : path);
+  }
+
   return {
     dirty: (path?: string): Sel<boolean> => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.dirty,
         k,
-        () => (s) => Object.keys(s.dirtyFields).some(match),
+        () => (s) => Object.keys(s.dirtyFields).some(matchFor(path, s.arrayKeys)),
       );
     },
     touched: (path?: string): Sel<boolean> => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.touched,
         k,
-        () => (s) => Object.keys(s.touchedFields).some(match),
+        () => (s) => Object.keys(s.touchedFields).some(matchFor(path, s.arrayKeys)),
       );
     },
     pending: (path?: string): Sel<boolean> => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.pending,
         k,
-        () => (s) => Object.keys(s.pendingFields).some(match),
+        () => (s) => Object.keys(s.pendingFields).some(matchFor(path, s.arrayKeys)),
       );
     },
     valid: (path?: string): Sel<boolean> => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.valid,
         k,
-        () => (s) =>
-          !Object.keys(s.errors).some(
+        () => (s) => {
+          const match = matchFor(path, s.arrayKeys);
+          return !Object.keys(s.errors).some(
             (key) => match(key) && s.errors[key] !== undefined,
-          ),
+          );
+        },
       );
     },
     errors: (path?: string): Sel<Record<string, TError>> => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
-      return cached(cache.errors, k, () => (s) => filterErrors(s, match));
+      return cached(
+        cache.errors,
+        k,
+        () => (s) => filterErrors(s, matchFor(path, s.arrayKeys)),
+      );
     },
     dirtyFields: (path?: string): Sel<string[]> => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.dirtyFields,
         k,
-        () => (s) => Object.keys(s.dirtyFields).filter(match),
+        () => (s) => Object.keys(s.dirtyFields).filter(matchFor(path, s.arrayKeys)),
       );
     },
     touchedFields: (path?: string): Sel<string[]> => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.touchedFields,
         k,
-        () => (s) => Object.keys(s.touchedFields).filter(match),
+        () => (s) => Object.keys(s.touchedFields).filter(matchFor(path, s.arrayKeys)),
       );
     },
     errorCount: (path?: string): Sel<number> => {
       const k = cacheKey(path);
-      const match = getMatcher(path);
       return cached(
         cache.errorCount,
         k,
-        () => (s) =>
-          Object.keys(s.errors).filter(
+        () => (s) => {
+          const match = matchFor(path, s.arrayKeys);
+          return Object.keys(s.errors).filter(
             (key) => match(key) && s.errors[key] !== undefined,
-          ).length,
+          ).length;
+        },
       );
     },
   };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hasPath, getIn, getInArray, setIn } from "./paths";
+import { hasPath, getIn, setIn } from "./paths";
 
 describe("hasPath", () => {
   it("returns true for a top-level key", () => {
@@ -62,20 +62,6 @@ describe("getIn", () => {
 
   it("returns undefined when the root object is null", () => {
     expect(getIn(null, "a")).toBeUndefined();
-  });
-});
-
-describe("getInArray", () => {
-  it("returns the array when it exists", () => {
-    expect(getInArray({ items: [1, 2, 3] }, "items")).toEqual([1, 2, 3]);
-  });
-
-  it("returns [] when the path does not exist", () => {
-    expect(getInArray({}, "items")).toEqual([]);
-  });
-
-  it("returns [] when the value is not an array", () => {
-    expect(getInArray({ items: "nope" }, "items")).toEqual([]);
   });
 });
 

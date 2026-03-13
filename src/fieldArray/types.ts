@@ -13,6 +13,7 @@ type FieldPath<TValues> = Path<TValues> | (string & Record<never, never>);
 
 export interface FieldArrayNamespace<TValues, TError = string> {
   getLength(path: FieldPath<TValues>): number;
+  getKeys(path: FieldPath<TValues>): string[];
   append<P extends Path<TValues>>(
     path: P,
     value: ArrayElement<PathValue<TValues, P>>,
@@ -60,7 +61,18 @@ export interface FieldArrayNamespace<TValues, TError = string> {
     indexB: number,
     options?: DispatchOptions,
   ): void;
+  sort(
+    path: FieldPath<TValues>,
+    comparator: (a: unknown, b: unknown) => number,
+    options?: DispatchOptions,
+  ): void;
+  reorder(
+    path: FieldPath<TValues>,
+    permutation: number[],
+    options?: DispatchOptions,
+  ): void;
   select: {
     length(path: FieldPath<TValues>): Selector<TValues, TError, number>;
+    keys(path: FieldPath<TValues>): Selector<TValues, TError, string[]>;
   };
 }

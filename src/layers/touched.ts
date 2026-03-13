@@ -2,7 +2,7 @@ import type { Enhancer } from "../core/types";
 import * as A from "../core/actions";
 import { treeMatcher } from "../utils/tree";
 import { hasPath } from "../utils/paths";
-import { reindexPathKeyedRecord } from "../utils/arrayReindex";
+import { removeByPrefix, keyPathToIndexPath } from "../utils/arrayKeys";
 
 export function touchedEnhancer<TValues, TError = string>(): Enhancer<
   TValues,
@@ -42,52 +42,24 @@ export function touchedEnhancer<TValues, TError = string>(): Enhancer<
       }
       case A.ARRAY_REMOVE: {
         if (!ctx.path) return draft;
-        const base = reindexPathKeyedRecord(
-          draft.touchedFields ?? prev.touchedFields,
-          ctx.path,
-          { type: "remove", index: ctx.index! },
-        );
+        const prevKeys = prev.arrayKeys[ctx.path] ?? [];
+        const removedKey = prevKeys[ctx.index!];
+        let base = draft.touchedFields ?? prev.touchedFields;
+        if (removedKey) {
+          base = removeByPrefix(base, ctx.path + "." + removedKey);
+        }
         return { ...draft, touchedFields: { ...base, [ctx.path]: true } };
       }
       case A.ARRAY_INSERT: {
         if (!ctx.path) return draft;
-        const base = reindexPathKeyedRecord(
-          draft.touchedFields ?? prev.touchedFields,
-          ctx.path,
-          { type: "insert", index: ctx.index! },
-        );
+        const base = draft.touchedFields ?? prev.touchedFields;
         return { ...draft, touchedFields: { ...base, [ctx.path]: true } };
       }
-      case A.ARRAY_MOVE: {
+      case A.ARRAY_MOVE:
+      case A.ARRAY_SWAP:
+      case A.ARRAY_SORT: {
         if (!ctx.path) return draft;
-        const base = reindexPathKeyedRecord(
-          draft.touchedFields ?? prev.touchedFields,
-          ctx.path,
-          { type: "move", from: ctx.from!, to: ctx.to! },
-        );
-        return { ...draft, touchedFields: { ...base, [ctx.path]: true } };
-      }
-      case A.ARRAY_SWAP: {
-        if (!ctx.path) return draft;
-        const base = reindexPathKeyedRecord(
-          draft.touchedFields ?? prev.touchedFields,
-          ctx.path,
-          { type: "swap", from: ctx.from!, to: ctx.to! },
-        );
-        return { ...draft, touchedFields: { ...base, [ctx.path]: true } };
-      }
-      case A.ARRAY_REPLACE: {
-        if (!ctx.path) return draft;
-        const prefix = ctx.path + ".";
-        let base = draft.touchedFields ?? prev.touchedFields;
-        if (Object.keys(base).some((k) => k.startsWith(prefix))) {
-          const next: Record<string, boolean> = {};
-          for (const k of Object.keys(base)) {
-            if (!k.startsWith(prefix) && base[k] !== undefined)
-              next[k] = base[k];
-          }
-          base = next;
-        }
+        const base = draft.touchedFields ?? prev.touchedFields;
         return { ...draft, touchedFields: { ...base, [ctx.path]: true } };
       }
       case A.RESET_FORM:
@@ -102,12 +74,16 @@ export function touchedEnhancer<TValues, TError = string>(): Enhancer<
         const match = treeMatcher(ctx.path);
         const base = draft.touchedFields ?? prev.touchedFields;
         const newValues = draft.values ?? prev.values;
+        const ak = draft.arrayKeys ?? prev.arrayKeys;
         const next: Record<string, boolean> = {};
         for (const k of Object.keys(base)) {
           if (!match(k)) {
             if (base[k] !== undefined) next[k] = base[k];
-          } else if (hasPath(newValues, k) && base[k] !== undefined) {
-            next[k] = base[k];
+          } else {
+            const idxPath = keyPathToIndexPath(k, ak);
+            if (hasPath(newValues, idxPath) && base[k] !== undefined) {
+              next[k] = base[k];
+            }
           }
         }
         return { ...draft, touchedFields: next };

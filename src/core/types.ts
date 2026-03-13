@@ -12,6 +12,8 @@ import type { FieldValidatorEntry } from "../validation/types";
 
 export interface FormState<TValues, TError = string> {
   values: TValues;
+  arrayKeys: Record<string, string[]>;
+  _keyCounter: number;
   dirtyFields: Record<string, boolean>;
   touchedFields: Record<string, boolean>;
   errors: Record<string, TError | undefined>;
@@ -50,7 +52,7 @@ export type ActionType =
   | typeof A.ARRAY_INSERT
   | typeof A.ARRAY_MOVE
   | typeof A.ARRAY_SWAP
-  | typeof A.ARRAY_REPLACE
+  | typeof A.ARRAY_SORT
   | typeof A.RESET_FORM
   | typeof A.SUBMIT
   | typeof A.SUBMIT_SUCCESS
@@ -63,6 +65,7 @@ export interface ActionContext {
   index?: number | undefined;
   from?: number | undefined;
   to?: number | undefined;
+  permutation?: number[] | undefined;
   options?: DispatchOptions | undefined;
 }
 
