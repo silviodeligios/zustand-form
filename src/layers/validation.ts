@@ -30,16 +30,19 @@ export function validationEnhancer<TValues, TError = string>(
       case A.SET_VALUE: {
         if (!ctx.path) return draft;
         const entry = registry.get(ctx.path);
-        if (
-          !entry?.validate ||
-          (entry.validateMode ?? "onChange") !== "onChange"
-        )
-          return draft;
-        const values = draft.values ?? prev.values;
-        const ak = draft.arrayKeys ?? prev.arrayKeys;
-        const error = entry.validate(getValueAtKeyPath(values, ctx.path, ak));
+        if (entry?.validate && (entry.validateMode ?? "onChange") === "onChange") {
+          const values = draft.values ?? prev.values;
+          const ak = draft.arrayKeys ?? prev.arrayKeys;
+          const error = entry.validate(getValueAtKeyPath(values, ctx.path, ak));
+          const base = draft.errors ?? prev.errors;
+          return { ...draft, errors: { ...base, [ctx.path]: error } };
+        }
+        // Field has onBlur validation — don't clear
+        if (entry?.validate) return draft;
+        // No validation registered — clear stale error (e.g. server error)
         const base = draft.errors ?? prev.errors;
-        return { ...draft, errors: { ...base, [ctx.path]: error } };
+        if (base[ctx.path] === undefined) return draft;
+        return { ...draft, errors: { ...base, [ctx.path]: undefined } };
       }
       case A.BLUR: {
         if (!ctx.path) return draft;

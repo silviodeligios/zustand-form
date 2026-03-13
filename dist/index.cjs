@@ -1223,13 +1223,17 @@ function validationEnhancer(registry) {
       case SET_VALUE: {
         if (!ctx.path) return draft;
         const entry = registry.get(ctx.path);
-        if (!entry?.validate || (entry.validateMode ?? "onChange") !== "onChange")
-          return draft;
-        const values = draft.values ?? prev.values;
-        const ak = draft.arrayKeys ?? prev.arrayKeys;
-        const error = entry.validate(getValueAtKeyPath(values, ctx.path, ak));
+        if (entry?.validate && (entry.validateMode ?? "onChange") === "onChange") {
+          const values = draft.values ?? prev.values;
+          const ak = draft.arrayKeys ?? prev.arrayKeys;
+          const error = entry.validate(getValueAtKeyPath(values, ctx.path, ak));
+          const base2 = draft.errors ?? prev.errors;
+          return { ...draft, errors: { ...base2, [ctx.path]: error } };
+        }
+        if (entry?.validate) return draft;
         const base = draft.errors ?? prev.errors;
-        return { ...draft, errors: { ...base, [ctx.path]: error } };
+        if (base[ctx.path] === void 0) return draft;
+        return { ...draft, errors: { ...base, [ctx.path]: void 0 } };
       }
       case BLUR: {
         if (!ctx.path) return draft;
