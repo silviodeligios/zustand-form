@@ -42,6 +42,6 @@ export interface UseFieldArrayReturn<TError = string, TElement = unknown> {
   move(from: number, to: number, options?: DispatchOptions): void;
   swap(indexA: number, indexB: number, options?: DispatchOptions): void;
   replace(arr: TElement[], options?: DispatchOptions): void;
-  sort(comparator: (a: unknown, b: unknown) => number, options?: DispatchOptions): void;
+  sort(comparator: (a: TElement, b: TElement) => number, options?: DispatchOptions): void;
   reorder(permutation: number[], options?: DispatchOptions): void;
 }

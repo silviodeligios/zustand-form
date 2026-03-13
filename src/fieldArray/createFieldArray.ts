@@ -41,7 +41,8 @@ export function createFieldArrayNamespace<TValues, TError = string>(
       dispatch({ type: A.SET_TREE_VALUE, path, value: v, options: opts }),
     swap: (path, a, b, opts?) =>
       dispatch({ type: A.ARRAY_SWAP, path, from: a, to: b, options: opts }),
-    sort: (path: string, comparator: (a: unknown, b: unknown) => number, opts?) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sort: (path: string, comparator: (a: any, b: any) => number, opts?: { disableLayers?: string[] }) => {
       const state = s();
       const arr = getInArray(state.values, path);
       const indices = arr.map((_: unknown, i: number) => i);

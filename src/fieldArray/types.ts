@@ -61,8 +61,16 @@ export interface FieldArrayNamespace<TValues, TError = string> {
     indexB: number,
     options?: DispatchOptions,
   ): void;
+  sort<P extends Path<TValues>>(
+    path: P,
+    comparator: (
+      a: ArrayElement<PathValue<TValues, P>>,
+      b: ArrayElement<PathValue<TValues, P>>,
+    ) => number,
+    options?: DispatchOptions,
+  ): void;
   sort(
-    path: FieldPath<TValues>,
+    path: string,
     comparator: (a: unknown, b: unknown) => number,
     options?: DispatchOptions,
   ): void;
