@@ -1,4 +1,4 @@
-import { c as Form, F as FormState, i as FieldArrayItem, l as FieldState, h as DispatchOptions, d as FieldValidatorEntry, I as InputProps, a as FormResolver, b as FieldValidateMode, N as NamedEnhancer, P as Path, n as PathValue, g as ArrayElement } from '../types-Mh_81LtP.js';
+import { c as Form, F as FormState, j as FieldArrayItem, m as FieldState, i as DispatchOptions, d as FieldValidatorEntry, I as InputProps, a as FormResolver, b as FieldValidateMode, N as NamedEnhancer, P as Path, o as PathValue, g as ArrayElement } from '../types-GKcaE7Ei.js';
 import { StateCreator } from 'zustand/vanilla';
 import * as react from 'react';
 
@@ -32,7 +32,7 @@ interface UseFieldArrayReturn<TError = string, TElement = unknown> {
     move(from: number, to: number, options?: DispatchOptions): void;
     swap(indexA: number, indexB: number, options?: DispatchOptions): void;
     replace(arr: TElement[], options?: DispatchOptions): void;
-    sort(comparator: (a: unknown, b: unknown) => number, options?: DispatchOptions): void;
+    sort(comparator: (a: TElement, b: TElement) => number, options?: DispatchOptions): void;
     reorder(permutation: number[], options?: DispatchOptions): void;
 }
 

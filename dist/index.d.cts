@@ -1,5 +1,5 @@
-import { F as FormState, a as FormResolver, b as FieldValidateMode, N as NamedEnhancer, c as Form, E as Enhancer, d as FieldValidatorEntry, D as Dispatch } from './types-Mh_81LtP.cjs';
-export { A as ActionContext, e as ActionType, f as Actions, g as ArrayElement, h as DispatchOptions, i as FieldArrayItem, j as FieldArrayNamespace, k as FieldNamespace, l as FieldState, m as FormSelectors, I as InputProps, P as Path, n as PathValue, T as TreeNamespace } from './types-Mh_81LtP.cjs';
+import { F as FormState, a as FormResolver, b as FieldValidateMode, N as NamedEnhancer, c as Form, E as Enhancer, d as FieldValidatorEntry, D as Dispatch } from './types-GKcaE7Ei.cjs';
+export { A as ActionContext, e as ActionType, f as Actions, g as ArrayElement, h as DeepLeaf, i as DispatchOptions, j as FieldArrayItem, k as FieldArrayNamespace, l as FieldNamespace, m as FieldState, n as FormSelectors, I as InputProps, P as Path, o as PathValue, T as TreeNamespace } from './types-GKcaE7Ei.cjs';
 import { StateCreator } from 'zustand/vanilla';
 
 interface FormConfig<TValues, TError = string> {

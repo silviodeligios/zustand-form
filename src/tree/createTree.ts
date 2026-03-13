@@ -1,9 +1,9 @@
 import type { StoreApi } from "zustand/vanilla";
 import type { FormState, Dispatch } from "../core/types";
-import type { TreeNamespace } from "./types";
+import type { TreeNamespace, DeepLeaf } from "./types";
 import * as A from "../core/actions";
 import { treeMatcher } from "../utils/tree";
-import { indexPathToKeyPath } from "../utils/arrayKeys";
+import { indexPathToKeyPath, unflattenToNested } from "../utils/arrayKeys";
 import { createTreeSelectors } from "./selectors";
 
 export function createTreeNamespace<TValues, TError = string>(
@@ -24,9 +24,15 @@ export function createTreeNamespace<TValues, TError = string>(
   }
 
   /** Normalize an index-based path to key-based, then get a cached matcher. */
+  function keyPrefixFor(
+    path: string | undefined,
+    ak: Record<string, string[]>,
+  ): string | undefined {
+    return path ? indexPathToKeyPath(path, ak) : undefined;
+  }
+
   function matchFor(path: string | undefined, ak: Record<string, string[]>) {
-    const kp = path ? indexPathToKeyPath(path, ak) : path;
-    return getMatcher(kp);
+    return getMatcher(keyPrefixFor(path, ak));
   }
 
   function filterErrors(
@@ -39,6 +45,16 @@ export function createTreeNamespace<TValues, TError = string>(
       if (match(k) && v !== undefined) result[k] = v;
     }
     return result;
+  }
+
+  /** Collect matching boolean-record keys as [keyPath, true] entries */
+  function* boolEntries(
+    record: Record<string, boolean>,
+    match: (k: string) => boolean,
+  ): Iterable<readonly [string, true]> {
+    for (const k of Object.keys(record)) {
+      if (match(k)) yield [k, true] as const;
+    }
   }
 
   return {
@@ -63,15 +79,34 @@ export function createTreeNamespace<TValues, TError = string>(
     },
     getErrors: (path?) => {
       const state = s();
-      return filterErrors(state, matchFor(path, state.arrayKeys));
+      const kp = keyPrefixFor(path, state.arrayKeys);
+      const match = getMatcher(kp);
+      const flat = filterErrors(state, match);
+      return unflattenToNested(
+        Object.entries(flat),
+        state.arrayKeys,
+        kp,
+      ) as DeepLeaf<TValues, TError>;
     },
     getDirtyFields: (path?) => {
       const state = s();
-      return Object.keys(state.dirtyFields).filter(matchFor(path, state.arrayKeys));
+      const kp = keyPrefixFor(path, state.arrayKeys);
+      const match = getMatcher(kp);
+      return unflattenToNested(
+        boolEntries(state.dirtyFields, match),
+        state.arrayKeys,
+        kp,
+      ) as DeepLeaf<TValues, boolean>;
     },
     getTouchedFields: (path?) => {
       const state = s();
-      return Object.keys(state.touchedFields).filter(matchFor(path, state.arrayKeys));
+      const kp = keyPrefixFor(path, state.arrayKeys);
+      const match = getMatcher(kp);
+      return unflattenToNested(
+        boolEntries(state.touchedFields, match),
+        state.arrayKeys,
+        kp,
+      ) as DeepLeaf<TValues, boolean>;
     },
 
     setValue: (...args: [unknown] | [string, unknown]) => {

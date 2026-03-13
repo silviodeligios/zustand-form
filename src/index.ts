@@ -38,7 +38,7 @@ export {
 export type { FieldNamespace, FieldState, InputProps } from "./field/types";
 
 // Tree
-export type { TreeNamespace } from "./tree/types";
+export type { TreeNamespace, DeepLeaf } from "./tree/types";
 
 // Field Array
 export type { FieldArrayNamespace, FieldArrayItem } from "./fieldArray/types";

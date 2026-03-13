@@ -114,14 +114,18 @@ interface FieldNamespace<TValues, TError = string> {
 type Selector$1<TValues, TError, R> = (s: FormState<TValues, TError>) => R;
 /** Accepts Path<TValues> for autocomplete, or any string for dynamic paths */
 type FieldPath$1<TValues> = Path<TValues> | (string & Record<never, never>);
+/** Nested structure mirroring the values shape with `L` at the leaves */
+type DeepLeaf<T, L> = T extends (infer U)[] ? (DeepLeaf<U, L> | undefined)[] : T extends Record<string, unknown> ? {
+    [K in keyof T]?: DeepLeaf<T[K], L>;
+} : L;
 interface TreeNamespace<TValues, TError = string> {
     isDirty(path?: FieldPath$1<TValues>): boolean;
     isTouched(path?: FieldPath$1<TValues>): boolean;
     isPending(path?: FieldPath$1<TValues>): boolean;
     isValid(path?: FieldPath$1<TValues>): boolean;
-    getErrors(path?: FieldPath$1<TValues>): Record<string, TError>;
-    getDirtyFields(path?: FieldPath$1<TValues>): string[];
-    getTouchedFields(path?: FieldPath$1<TValues>): string[];
+    getErrors(path?: FieldPath$1<TValues>): DeepLeaf<TValues, TError>;
+    getDirtyFields(path?: FieldPath$1<TValues>): DeepLeaf<TValues, boolean>;
+    getTouchedFields(path?: FieldPath$1<TValues>): DeepLeaf<TValues, boolean>;
     setValue(value: TValues): void;
     setValue(path: FieldPath$1<TValues>, value: unknown): void;
     clearErrors(path?: FieldPath$1<TValues>, options?: DispatchOptions): void;
@@ -132,9 +136,9 @@ interface TreeNamespace<TValues, TError = string> {
         touched(path?: FieldPath$1<TValues>): Selector$1<TValues, TError, boolean>;
         pending(path?: FieldPath$1<TValues>): Selector$1<TValues, TError, boolean>;
         valid(path?: FieldPath$1<TValues>): Selector$1<TValues, TError, boolean>;
-        errors(path?: FieldPath$1<TValues>): Selector$1<TValues, TError, Record<string, TError>>;
-        dirtyFields(path?: FieldPath$1<TValues>): Selector$1<TValues, TError, string[]>;
-        touchedFields(path?: FieldPath$1<TValues>): Selector$1<TValues, TError, string[]>;
+        errors(path?: FieldPath$1<TValues>): Selector$1<TValues, TError, DeepLeaf<TValues, TError>>;
+        dirtyFields(path?: FieldPath$1<TValues>): Selector$1<TValues, TError, DeepLeaf<TValues, boolean>>;
+        touchedFields(path?: FieldPath$1<TValues>): Selector$1<TValues, TError, DeepLeaf<TValues, boolean>>;
         errorCount(path?: FieldPath$1<TValues>): Selector$1<TValues, TError, number>;
     };
 }
@@ -160,7 +164,8 @@ interface FieldArrayNamespace<TValues, TError = string> {
     replace<P extends Path<TValues>>(path: P, value: PathValue<TValues, P>, options?: DispatchOptions): void;
     replace(path: string, value: unknown, options?: DispatchOptions): void;
     swap(path: FieldPath<TValues>, indexA: number, indexB: number, options?: DispatchOptions): void;
-    sort(path: FieldPath<TValues>, comparator: (a: unknown, b: unknown) => number, options?: DispatchOptions): void;
+    sort<P extends Path<TValues>>(path: P, comparator: (a: ArrayElement<PathValue<TValues, P>>, b: ArrayElement<PathValue<TValues, P>>) => number, options?: DispatchOptions): void;
+    sort(path: string, comparator: (a: unknown, b: unknown) => number, options?: DispatchOptions): void;
     reorder(path: FieldPath<TValues>, permutation: number[], options?: DispatchOptions): void;
     select: {
         length(path: FieldPath<TValues>): Selector<TValues, TError, number>;
@@ -252,4 +257,4 @@ interface Form<TValues, TError = string> {
     select: FormSelectors<TValues, TError>;
 }
 
-export { type ActionContext as A, type Dispatch as D, type Enhancer as E, type FormState as F, type InputProps as I, type NamedEnhancer as N, type Path as P, type TreeNamespace as T, type FormResolver as a, type FieldValidateMode as b, type Form as c, type FieldValidatorEntry as d, type ActionType as e, actions as f, type ArrayElement as g, type DispatchOptions as h, type FieldArrayItem as i, type FieldArrayNamespace as j, type FieldNamespace as k, type FieldState as l, type FormSelectors as m, type PathValue as n };
+export { type ActionContext as A, type Dispatch as D, type Enhancer as E, type FormState as F, type InputProps as I, type NamedEnhancer as N, type Path as P, type TreeNamespace as T, type FormResolver as a, type FieldValidateMode as b, type Form as c, type FieldValidatorEntry as d, type ActionType as e, actions as f, type ArrayElement as g, type DeepLeaf as h, type DispatchOptions as i, type FieldArrayItem as j, type FieldArrayNamespace as k, type FieldNamespace as l, type FieldState as m, type FormSelectors as n, type PathValue as o };

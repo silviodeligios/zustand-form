@@ -282,12 +282,11 @@ describe("stable array keys - tree operations with index paths", () => {
     form.field.setError(`items.${keys[0]}.name`, "err-a");
     form.field.setError(`items.${keys[1]}.name`, "err-b");
 
-    const errorsAll = form.tree.getErrors("items");
-    expect(Object.keys(errorsAll)).toHaveLength(2);
+    const errorsAll = form.tree.getErrors("items") as any;
+    expect(errorsAll).toEqual([{ name: "err-a" }, { name: "err-b" }]);
 
-    const errorsFirst = form.tree.getErrors("items.0" as any);
-    expect(Object.keys(errorsFirst)).toHaveLength(1);
-    expect(errorsFirst[`items.${keys[0]}.name`]).toBe("err-a");
+    const errorsFirst = form.tree.getErrors("items.0" as any) as any;
+    expect(errorsFirst).toEqual({ name: "err-a" });
   });
 
   it("tree selectors work with index-based paths", () => {

@@ -1,6 +1,7 @@
 import type { FormState } from "../core/types";
+import type { DeepLeaf } from "./types";
 import { cached } from "../utils/cache";
-import { indexPathToKeyPath } from "../utils/arrayKeys";
+import { indexPathToKeyPath, unflattenToNested } from "../utils/arrayKeys";
 
 export function createTreeSelectors<TValues, TError = string>(
   getMatcher: (path?: string) => (key: string) => boolean,
@@ -16,17 +17,33 @@ export function createTreeSelectors<TValues, TError = string>(
     touched: new Map<string, Sel<boolean>>(),
     pending: new Map<string, Sel<boolean>>(),
     valid: new Map<string, Sel<boolean>>(),
-    errors: new Map<string, Sel<Record<string, TError>>>(),
-    dirtyFields: new Map<string, Sel<string[]>>(),
-    touchedFields: new Map<string, Sel<string[]>>(),
+    errors: new Map<string, Sel<DeepLeaf<TValues, TError>>>(),
+    dirtyFields: new Map<string, Sel<DeepLeaf<TValues, boolean>>>(),
+    touchedFields: new Map<string, Sel<DeepLeaf<TValues, boolean>>>(),
     errorCount: new Map<string, Sel<number>>(),
   };
 
   const cacheKey = (path?: string) => path ?? "";
 
-  /** Resolve path to key-based using current arrayKeys, return cached matcher. */
+  /** Resolve path to key-based, returning both the key prefix and the matcher. */
+  function keyPrefixFor(
+    path: string | undefined,
+    ak: Record<string, string[]>,
+  ): string | undefined {
+    return path ? indexPathToKeyPath(path, ak) : undefined;
+  }
+
   function matchFor(path: string | undefined, ak: Record<string, string[]>) {
-    return getMatcher(path ? indexPathToKeyPath(path, ak) : path);
+    return getMatcher(keyPrefixFor(path, ak));
+  }
+
+  function* boolEntries(
+    record: Record<string, boolean>,
+    match: (k: string) => boolean,
+  ): Iterable<readonly [string, true]> {
+    for (const k of Object.keys(record)) {
+      if (match(k)) yield [k, true] as const;
+    }
   }
 
   return {
@@ -67,28 +84,53 @@ export function createTreeSelectors<TValues, TError = string>(
         },
       );
     },
-    errors: (path?: string): Sel<Record<string, TError>> => {
+    errors: (path?: string): Sel<DeepLeaf<TValues, TError>> => {
       const k = cacheKey(path);
       return cached(
         cache.errors,
         k,
-        () => (s) => filterErrors(s, matchFor(path, s.arrayKeys)),
+        () => (s) => {
+          const kp = keyPrefixFor(path, s.arrayKeys);
+          const match = getMatcher(kp);
+          const flat = filterErrors(s, match);
+          return unflattenToNested(
+            Object.entries(flat),
+            s.arrayKeys,
+            kp,
+          ) as DeepLeaf<TValues, TError>;
+        },
       );
     },
-    dirtyFields: (path?: string): Sel<string[]> => {
+    dirtyFields: (path?: string): Sel<DeepLeaf<TValues, boolean>> => {
       const k = cacheKey(path);
       return cached(
         cache.dirtyFields,
         k,
-        () => (s) => Object.keys(s.dirtyFields).filter(matchFor(path, s.arrayKeys)),
+        () => (s) => {
+          const kp = keyPrefixFor(path, s.arrayKeys);
+          const match = getMatcher(kp);
+          return unflattenToNested(
+            boolEntries(s.dirtyFields, match),
+            s.arrayKeys,
+            kp,
+          ) as DeepLeaf<TValues, boolean>;
+        },
       );
     },
-    touchedFields: (path?: string): Sel<string[]> => {
+    touchedFields: (path?: string): Sel<DeepLeaf<TValues, boolean>> => {
       const k = cacheKey(path);
       return cached(
         cache.touchedFields,
         k,
-        () => (s) => Object.keys(s.touchedFields).filter(matchFor(path, s.arrayKeys)),
+        () => (s) => {
+          const kp = keyPrefixFor(path, s.arrayKeys);
+          const match = getMatcher(kp);
+          return unflattenToNested(
+            boolEntries(s.touchedFields, match),
+            s.arrayKeys,
+            kp,
+          ) as DeepLeaf<TValues, boolean>;
+        },
       );
     },
     errorCount: (path?: string): Sel<number> => {

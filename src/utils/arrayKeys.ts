@@ -155,6 +155,60 @@ export const removeKeyedEntries = removeByPrefix;
 export const removeNestedArrayKeys = removeByPrefix;
 
 /**
+ * Convert a flat record of key-based paths to a nested structure matching the
+ * values shape.  Array key segments (_kN) are translated back to numeric
+ * indices so the result contains real arrays.
+ *
+ * `keyPrefix` (already key-based) is stripped from every entry before building
+ * the tree.  When omitted the full path is used.
+ */
+export function unflattenToNested<T>(
+  flatEntries: Iterable<readonly [string, T]>,
+  arrayKeys: Record<string, string[]>,
+  keyPrefix?: string,
+): unknown {
+  const prefixIndex = keyPrefix
+    ? keyPathToIndexPath(keyPrefix, arrayKeys)
+    : undefined;
+  const stripLen = prefixIndex ? prefixIndex.length + 1 : 0;
+
+  // First pass: collect relative index-based paths
+  const entries: [string, T][] = [];
+  for (const [keyPath, value] of flatEntries) {
+    const fullIndex = keyPathToIndexPath(keyPath, arrayKeys);
+    const rel = stripLen > 0 ? fullIndex.slice(stripLen) : fullIndex;
+    if (!rel) continue; // exact prefix match — skip (leaf on the prefix itself)
+    entries.push([rel, value]);
+  }
+
+  if (entries.length === 0) return {};
+
+  // Determine if root container should be an array
+  const firstSeg = entries[0]![0].split(".")[0]!;
+  const root: any = /^\d+$/.test(firstSeg) ? [] : {};
+
+  for (const [path, value] of entries) {
+    const segments = path.split(".");
+    let current: any = root;
+
+    for (let i = 0; i < segments.length - 1; i++) {
+      const seg = segments[i]!;
+      const key: string | number = /^\d+$/.test(seg) ? Number(seg) : seg;
+      if (current[key] == null) {
+        const nextSeg = segments[i + 1]!;
+        current[key] = /^\d+$/.test(nextSeg) ? [] : {};
+      }
+      current = current[key];
+    }
+
+    const last = segments[segments.length - 1]!;
+    current[/^\d+$/.test(last) ? Number(last) : last] = value;
+  }
+
+  return root;
+}
+
+/**
  * Get a value at a key-based path by translating to index-based first.
  * Shorthand for `getIn(values, keyPathToIndexPath(keyPath, arrayKeys))`.
  */

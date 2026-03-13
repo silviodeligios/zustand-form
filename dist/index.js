@@ -206,6 +206,36 @@ function removeByPrefix(record, keyPrefix) {
   return next;
 }
 var removeKeyedEntries = removeByPrefix;
+function unflattenToNested(flatEntries, arrayKeys, keyPrefix) {
+  const prefixIndex = keyPrefix ? keyPathToIndexPath(keyPrefix, arrayKeys) : void 0;
+  const stripLen = prefixIndex ? prefixIndex.length + 1 : 0;
+  const entries = [];
+  for (const [keyPath, value] of flatEntries) {
+    const fullIndex = keyPathToIndexPath(keyPath, arrayKeys);
+    const rel = stripLen > 0 ? fullIndex.slice(stripLen) : fullIndex;
+    if (!rel) continue;
+    entries.push([rel, value]);
+  }
+  if (entries.length === 0) return {};
+  const firstSeg = entries[0][0].split(".")[0];
+  const root = /^\d+$/.test(firstSeg) ? [] : {};
+  for (const [path, value] of entries) {
+    const segments = path.split(".");
+    let current = root;
+    for (let i = 0; i < segments.length - 1; i++) {
+      const seg = segments[i];
+      const key = /^\d+$/.test(seg) ? Number(seg) : seg;
+      if (current[key] == null) {
+        const nextSeg = segments[i + 1];
+        current[key] = /^\d+$/.test(nextSeg) ? [] : {};
+      }
+      current = current[key];
+    }
+    const last = segments[segments.length - 1];
+    current[/^\d+$/.test(last) ? Number(last) : last] = value;
+  }
+  return root;
+}
 function getValueAtKeyPath(values, keyPath, arrayKeys) {
   return getIn(values, keyPathToIndexPath(keyPath, arrayKeys));
 }
@@ -338,6 +368,7 @@ function createFieldArrayNamespace(store, dispatch) {
     move: (path, f, t, opts) => dispatch({ type: ARRAY_MOVE, path, from: f, to: t, options: opts }),
     replace: (path, v, opts) => dispatch({ type: SET_TREE_VALUE, path, value: v, options: opts }),
     swap: (path, a, b, opts) => dispatch({ type: ARRAY_SWAP, path, from: a, to: b, options: opts }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sort: (path, comparator, opts) => {
       const state = s();
       const arr = getInArray(state.values, path);
@@ -386,8 +417,16 @@ function createTreeSelectors(getMatcher, filterErrors) {
     errorCount: /* @__PURE__ */ new Map()
   };
   const cacheKey = (path) => path ?? "";
+  function keyPrefixFor(path, ak) {
+    return path ? indexPathToKeyPath(path, ak) : void 0;
+  }
   function matchFor(path, ak) {
-    return getMatcher(path ? indexPathToKeyPath(path, ak) : path);
+    return getMatcher(keyPrefixFor(path, ak));
+  }
+  function* boolEntries(record, match) {
+    for (const k of Object.keys(record)) {
+      if (match(k)) yield [k, true];
+    }
   }
   return {
     dirty: (path) => {
@@ -432,7 +471,16 @@ function createTreeSelectors(getMatcher, filterErrors) {
       return cached(
         cache.errors,
         k,
-        () => (s) => filterErrors(s, matchFor(path, s.arrayKeys))
+        () => (s) => {
+          const kp = keyPrefixFor(path, s.arrayKeys);
+          const match = getMatcher(kp);
+          const flat = filterErrors(s, match);
+          return unflattenToNested(
+            Object.entries(flat),
+            s.arrayKeys,
+            kp
+          );
+        }
       );
     },
     dirtyFields: (path) => {
@@ -440,7 +488,15 @@ function createTreeSelectors(getMatcher, filterErrors) {
       return cached(
         cache.dirtyFields,
         k,
-        () => (s) => Object.keys(s.dirtyFields).filter(matchFor(path, s.arrayKeys))
+        () => (s) => {
+          const kp = keyPrefixFor(path, s.arrayKeys);
+          const match = getMatcher(kp);
+          return unflattenToNested(
+            boolEntries(s.dirtyFields, match),
+            s.arrayKeys,
+            kp
+          );
+        }
       );
     },
     touchedFields: (path) => {
@@ -448,7 +504,15 @@ function createTreeSelectors(getMatcher, filterErrors) {
       return cached(
         cache.touchedFields,
         k,
-        () => (s) => Object.keys(s.touchedFields).filter(matchFor(path, s.arrayKeys))
+        () => (s) => {
+          const kp = keyPrefixFor(path, s.arrayKeys);
+          const match = getMatcher(kp);
+          return unflattenToNested(
+            boolEntries(s.touchedFields, match),
+            s.arrayKeys,
+            kp
+          );
+        }
       );
     },
     errorCount: (path) => {
@@ -480,9 +544,11 @@ function createTreeNamespace(store, dispatch) {
     }
     return m;
   }
+  function keyPrefixFor(path, ak) {
+    return path ? indexPathToKeyPath(path, ak) : void 0;
+  }
   function matchFor(path, ak) {
-    const kp = path ? indexPathToKeyPath(path, ak) : path;
-    return getMatcher(kp);
+    return getMatcher(keyPrefixFor(path, ak));
   }
   function filterErrors(state, match) {
     const result = {};
@@ -491,6 +557,11 @@ function createTreeNamespace(store, dispatch) {
       if (match(k) && v !== void 0) result[k] = v;
     }
     return result;
+  }
+  function* boolEntries(record, match) {
+    for (const k of Object.keys(record)) {
+      if (match(k)) yield [k, true];
+    }
   }
   return {
     isDirty: (path) => {
@@ -514,15 +585,34 @@ function createTreeNamespace(store, dispatch) {
     },
     getErrors: (path) => {
       const state = s();
-      return filterErrors(state, matchFor(path, state.arrayKeys));
+      const kp = keyPrefixFor(path, state.arrayKeys);
+      const match = getMatcher(kp);
+      const flat = filterErrors(state, match);
+      return unflattenToNested(
+        Object.entries(flat),
+        state.arrayKeys,
+        kp
+      );
     },
     getDirtyFields: (path) => {
       const state = s();
-      return Object.keys(state.dirtyFields).filter(matchFor(path, state.arrayKeys));
+      const kp = keyPrefixFor(path, state.arrayKeys);
+      const match = getMatcher(kp);
+      return unflattenToNested(
+        boolEntries(state.dirtyFields, match),
+        state.arrayKeys,
+        kp
+      );
     },
     getTouchedFields: (path) => {
       const state = s();
-      return Object.keys(state.touchedFields).filter(matchFor(path, state.arrayKeys));
+      const kp = keyPrefixFor(path, state.arrayKeys);
+      const match = getMatcher(kp);
+      return unflattenToNested(
+        boolEntries(state.touchedFields, match),
+        state.arrayKeys,
+        kp
+      );
     },
     setValue: (...args) => {
       if (typeof args[0] === "string") {
